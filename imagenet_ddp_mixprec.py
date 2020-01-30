@@ -36,9 +36,9 @@ parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=1024, type=int,
+parser.add_argument('-b', '--batch-size', default=920, type=int,
                     metavar='N',
-                    help='mini-batch size (default: 1024), this is the total '
+                    help='mini-batch size (default: 920), this is the total '
                          'batch size of all GPUs on the current node when '
                          'using Data Parallel or Distributed Data Parallel')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
@@ -65,7 +65,7 @@ parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
                          'the IP address and open port number of the master node')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--desired-acc', default=None, type=float,
+parser.add_argument('--desired-acc', default=75.0, type=float,
                     help='Training will stop after desired-acc is reached.')
 
 best_acc1 = 0
