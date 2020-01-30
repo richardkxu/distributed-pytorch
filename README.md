@@ -119,10 +119,17 @@ References:
 
 Mixed precision training: majority of the network uses FP16 arithmetic, while automatically casting potentially unstable operations to FP32.
 
+Key points:
+- Ensuring that weight updates are carried out in FP32.
+- Loss scaling to prevent underflowing gradients.
+- A few operations (e.g. large reductions) left in FP32.
+- Everything else (the majority of the network) executed in FP16.
+
 Advantages:
-- reducing memory storage/bandwidth demands
+- reducing memory storage/bandwidth demands by 2x
 - use larger batch sizes
-- take advantage of NVIDIA Tensor Cores for gemms and convolutions
+- take advantage of NVIDIA Tensor Cores for matrix multiplications and convolutions
+- don't need to manually cast to FP16 or convert input data to FP16
 
 Use `imagenet_ddp_mixprec.py` for training. It is run the same way as the DDP training script.
 

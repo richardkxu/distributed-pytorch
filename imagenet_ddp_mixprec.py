@@ -133,8 +133,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # the model must already be on the correct GPU before calling amp.initialize.
     # The opt_level goes from O0 through O3, which uses different degrees of mixed-precision
     # We no longer have to specify the GPUs because Apex only allows one GPU per process.
-    model, optimizer = amp.initialize(model, optimizer,
-                                      opt_level='O2')
+    model, optimizer = amp.initialize(model, optimizer, opt_level='O2')
     model = DDP(model)
     ##############################################################
 
