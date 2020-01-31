@@ -65,7 +65,7 @@ parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
                          'the IP address and open port number of the master node')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--desired-acc', default=75.0, type=float,
+parser.add_argument('--desired-acc', default=0.60, type=float,
                     help='Training will stop after desired-acc is reached.')
 
 best_acc1 = 0
@@ -225,6 +225,8 @@ def main_worker(gpu, ngpus_per_node, args):
         # stop training once reach desired accuracy
         if args.desired_acc and best_acc1 >= args.desired_acc:
             time_elapsed = time.time() - end
+            mins, secs = divmod(time_elapsed, 60)
+            hrs, mins = divmod(mins, 60)
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
@@ -233,7 +235,8 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer': optimizer.state_dict(),
                 'training_time': time_elapsed,
             }, is_best)
-            print("Reached acc of: {:6.2f}; Time elapsed: {:6.3f}".format(args.desired_acc, time_elapsed))
+            print("Reached acc of: {:6.2f}; Time elapsed: "
+                  "{:.2f} hrs {:.2f} mins {:.2f} secs".format(best_acc1, hrs, mins, secs))
             break
 
 
