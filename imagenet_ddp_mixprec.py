@@ -36,11 +36,13 @@ parser.add_argument('--epochs', default=90, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch-size', default=920, type=int,
+parser.add_argument('-b', '--batch-size', default=896, type=int,
                     metavar='N',
-                    help='mini-batch size (default: 920), this is the total '
+                    help='mini-batch size (default: 896), this is the total '
                          'batch size of all GPUs on the current node when '
-                         'using Data Parallel or Distributed Data Parallel')
+                         'using Data Parallel or Distributed Data Parallel'
+                         'has to be a multiple of 8 to make use of Tensor'
+                         'Cores. for GPU < 16 GB, max batch size is 224')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                     metavar='LR', help='initial learning rate', dest='lr')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',

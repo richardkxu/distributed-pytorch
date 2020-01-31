@@ -129,7 +129,7 @@ Advantages:
 - reducing memory storage/bandwidth demands by 2x
 - use larger batch sizes
 - take advantage of NVIDIA Tensor Cores for matrix multiplications and convolutions
-- don't need to manually cast to FP16 or convert input data to FP16
+- don't need to explicitly convert your model, or the input data, to half().
 
 Use `imagenet_ddp_mixprec.py` for training. It is run the same way as the DDP training script.
 
