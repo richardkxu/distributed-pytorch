@@ -91,6 +91,7 @@ python  imagenet_ddp.py -a resnet50 --dist-url 'tcp://MASTER_IP:MASTER_PORT' --d
 - `--world-size`: equals the # of compute nodes you are using
 - `--rank`: rank of the current node, should be an int between `0` and `--world-size - 1`
 - `--desired-acc`: desired accuracy to stop training
+- `--workers`: # of data loading workers for the current node. this is different from the processes that run the programe on each GPU. the total # of processes = # of data loading workers + # of GPUs (one process to run each GPU)
 
 Node 1:
 ```bash
