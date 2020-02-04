@@ -50,11 +50,11 @@ def parse():
     parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
     parser.add_argument('data', metavar='DIR',
                         help='path to dataset')
-    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
                         choices=model_names,
                         help='model architecture: ' +
                         ' | '.join(model_names) +
-                        ' (default: resnet18)')
+                        ' (default: resnet50)')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--epochs', default=90, type=int, metavar='N',
@@ -64,7 +64,9 @@ def parse():
     parser.add_argument('-b', '--batch-size', default=256, type=int,
                         metavar='N', help='mini-batch size per process (default: 256)')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                        metavar='LR', help='Initial learning rate.  Will be scaled by <global batch size>/256: args.lr = args.lr*float(args.batch_size*args.world_size)/256.  A warmup schedule will also be applied over the first 5 epochs.')
+                        metavar='LR', help='Initial learning rate.  Will be scaled by <global batch size>/256:'
+                                           'args.lr = args.lr*float(args.batch_size*args.world_size)/256.'
+                                           'A warmup schedule will also be applied over the first 5 epochs.')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -89,7 +91,6 @@ def parse():
     parser.add_argument('--opt-level', type=str)
     parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
     parser.add_argument('--loss-scale', type=str, default=None)
-    parser.add_argument('--channels-last', type=bool, default=False)
     args = parser.parse_args()
     return args
 
@@ -100,16 +101,13 @@ def main():
     print("opt_level = {}".format(args.opt_level))
     print("keep_batchnorm_fp32 = {}".format(args.keep_batchnorm_fp32), type(args.keep_batchnorm_fp32))
     print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
-
     print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
 
+    # cudnn will look for the optimal set of algorithms for that
+    # particular configuration. this will have faster runtime if
+    # your input sizes does not change at each iteration
     cudnn.benchmark = True
     best_prec1 = 0
-    if args.deterministic:
-        cudnn.benchmark = False
-        cudnn.deterministic = True
-        torch.manual_seed(args.local_rank)
-        torch.set_printoptions(precision=10)
 
     args.distributed = False
     if 'WORLD_SIZE' in os.environ:
@@ -127,10 +125,7 @@ def main():
 
     assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
-    if args.channels_last:
-        memory_format = torch.channels_last
-    else:
-        memory_format = torch.contiguous_format
+    memory_format = torch.contiguous_format
 
     # create model
     if args.pretrained:
@@ -251,6 +246,7 @@ def main():
         prec1 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
+        # only one node needs to save
         if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
@@ -261,6 +257,7 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best)
+
 
 class data_prefetcher():
     def __init__(self, loader):
