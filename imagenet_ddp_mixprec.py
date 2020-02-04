@@ -69,7 +69,7 @@ parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
                          'the IP address and open port number of the master node')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
-parser.add_argument('--desired-acc', default=0.60, type=float,
+parser.add_argument('--desired-acc', default=75.0, type=float,
                     help='Training will stop after desired-acc is reached.')
 
 best_acc1 = 0
@@ -188,13 +188,17 @@ def main_worker(gpu, ngpus_per_node, args):
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
+    val_dataset = datasets.ImageFolder(
+        valdir,
+        transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
-        ])),
+        ]))
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
@@ -218,19 +222,7 @@ def main_worker(gpu, ngpus_per_node, args):
         best_acc1 = max(acc1, best_acc1)
 
         if args.rank % ngpus_per_node == 0:
-            save_checkpoint({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'best_acc1': best_acc1,
-                'optimizer': optimizer.state_dict(),
-            }, is_best)
-
-        # stop training once reach desired accuracy
-        if args.desired_acc and best_acc1 >= args.desired_acc:
             time_elapsed = time.time() - end
-            mins, secs = divmod(time_elapsed, 60)
-            hrs, mins = divmod(mins, 60)
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
@@ -239,9 +231,26 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer': optimizer.state_dict(),
                 'training_time': time_elapsed,
             }, is_best)
-            print("Reached acc of: {:6.2f}; Time elapsed: "
-                  "{:.2f} hrs {:.2f} mins {:.2f} secs".format(best_acc1, hrs, mins, secs))
-            break
+            # stop training once reach desired accuracy
+            if args.desired_acc and best_acc1 >= args.desired_acc:
+                mins, secs = divmod(time_elapsed, 60)
+                hrs, mins = divmod(mins, 60)
+                print("Reached acc of: {:6.2f}\n"
+                      "Time elapsed: {:.2f} hrs {:.2f} mins {:.2f} secs | {:.2f} secs\n"
+                      "Total # epoches: {:.2f}\n"
+                      "# of train steps per epoch: {:.2f}\n"
+                      "# of val steps per epoch: {:.2f}\n"
+                      "Length of trainset: {:.2f}\n"
+                      "Length of valset: {:.2f}\n".format(
+                      best_acc1,
+                      hrs, mins, secs, time_elapsed,
+                      epoch + 1,
+                      len(train_loader),
+                      len(val_loader),
+                      len(train_dataset),
+                      len(val_dataset)
+                     ))
+                break
 
 
 def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
@@ -250,9 +259,10 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
+    speed = AverageMeter('Speed', ':6.2f')
     progress = ProgressMeter(
         len(train_loader),
-        [batch_time, data_time, losses, top1, top5],
+        [top1, top5, speed, batch_time, losses],
         prefix="Epoch: [{}]".format(epoch))
 
     # switch to train mode
@@ -287,7 +297,9 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
         optimizer.step()
 
         # measure elapsed time
-        batch_time.update(time.time() - end)
+        t = time.time() - end
+        batch_time.update(t)
+        speed.update(args.world_size*args.batch_size/t)
         end = time.time()
 
         if i % args.print_freq == 0:
@@ -299,9 +311,10 @@ def validate(val_loader, model, criterion, gpu, args):
     losses = AverageMeter('Loss', ':.4e')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
+    speed = AverageMeter('Speed', ':6.2f')
     progress = ProgressMeter(
         len(val_loader),
-        [batch_time, losses, top1, top5],
+        [top1, top5, speed, batch_time, losses],
         prefix='Test: ')
 
     # switch to evaluate mode
@@ -324,7 +337,9 @@ def validate(val_loader, model, criterion, gpu, args):
             top5.update(acc5[0], images.size(0))
 
             # measure elapsed time
-            batch_time.update(time.time() - end)
+            t = time.time() - end
+            batch_time.update(t)
+            speed.update(args.world_size*args.batch_size/t)
             end = time.time()
 
             if i % args.print_freq == 0:
