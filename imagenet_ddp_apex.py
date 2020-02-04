@@ -3,6 +3,7 @@ import os
 import shutil
 import time
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -15,15 +16,10 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
-import numpy as np
-
-try:
-    from apex.parallel import DistributedDataParallel as DDP
-    from apex.fp16_utils import *
-    from apex import amp, optimizers
-    from apex.multi_tensor_apply import multi_tensor_applier
-except ImportError:
-    raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
+from apex.parallel import DistributedDataParallel as DDP
+from apex.fp16_utils import *
+from apex import amp, optimizers
+from apex.multi_tensor_apply import multi_tensor_applier
 
 
 def fast_collate(batch, memory_format):
@@ -32,10 +28,10 @@ def fast_collate(batch, memory_format):
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
     w = imgs[0].size[0]
     h = imgs[0].size[1]
-    tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8).contiguous(memory_format=memory_format)
+    tensor = torch.zeros((len(imgs), 3, h, w), dtype=torch.uint8).contiguous(memory_format=memory_format)
     for i, img in enumerate(imgs):
         nump_array = np.asarray(img, dtype=np.uint8)
-        if(nump_array.ndim < 3):
+        if nump_array.ndim < 3:
             nump_array = np.expand_dims(nump_array, axis=-1)
         nump_array = np.rollaxis(nump_array, 2)
         tensor[i] += torch.from_numpy(nump_array)
@@ -80,10 +76,6 @@ def parse():
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
 
-    parser.add_argument('--prof', default=-1, type=int,
-                        help='Only run 10 iterations for profiling.')
-    parser.add_argument('--deterministic', action='store_true')
-
     parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--sync_bn', action='store_true',
                         help='enabling apex sync BN.')
@@ -93,6 +85,7 @@ def parse():
     parser.add_argument('--loss-scale', type=str, default=None)
     args = parser.parse_args()
     return args
+
 
 def main():
     global best_prec1, args
@@ -143,6 +136,7 @@ def main():
     model = model.cuda().to(memory_format=memory_format)
 
     # Scale learning rate based on global batch size
+    # When the minibatch size is multiplied by k, multiply the learning rate by k
     args.lr = args.lr*float(args.batch_size*args.world_size)/256.
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -259,16 +253,13 @@ def main():
             }, is_best)
 
 
-class data_prefetcher():
+class DataPrefetcher:
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
         self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
         self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
         # With Amp, it isn't necessary to manually convert data to half.
-        # if args.fp16:
-        #     self.mean = self.mean.half()
-        #     self.std = self.std.half()
         self.preload()
 
     def preload(self):
@@ -296,9 +287,6 @@ class data_prefetcher():
             # self.next_target = self.next_target_gpu
 
             # With Amp, it isn't necessary to manually convert data to half.
-            # if args.fp16:
-            #     self.next_input = self.next_input.half()
-            # else:
             self.next_input = self.next_input.float()
             self.next_input = self.next_input.sub_(self.mean).div_(self.std)
 
@@ -324,41 +312,27 @@ def train(train_loader, model, criterion, optimizer, epoch):
     model.train()
     end = time.time()
 
-    prefetcher = data_prefetcher(train_loader)
+    prefetcher = DataPrefetcher(train_loader)
     input, target = prefetcher.next()
     i = 0
     while input is not None:
         i += 1
-        if args.prof >= 0 and i == args.prof:
-            print("Profiling begun at iteration {}".format(i))
-            torch.cuda.cudart().cudaProfilerStart()
-
-        if args.prof >= 0: torch.cuda.nvtx.range_push("Body of iteration {}".format(i))
 
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         # compute output
-        if args.prof >= 0: torch.cuda.nvtx.range_push("forward")
         output = model(input)
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
         loss = criterion(output, target)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
-        if args.prof >= 0: torch.cuda.nvtx.range_push("backward")
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
-        # for param in model.parameters():
-        #     print(param.data.double().sum().item(), param.grad.data.double().sum().item())
-
-        if args.prof >= 0: torch.cuda.nvtx.range_push("optimizer.step()")
         optimizer.step()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
 
-        if i%args.print_freq == 0:
+        if i % args.print_freq == 0:
             # Every print_freq iterations, check the loss, accuracy, and speed.
             # For best performance, it doesn't make sense to print these metrics every
             # iteration, since they incur an allreduce and some host<->device syncs.
@@ -395,17 +369,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
                        args.world_size*args.batch_size/batch_time.avg,
                        batch_time=batch_time,
                        loss=losses, top1=top1, top5=top5))
-        if args.prof >= 0: torch.cuda.nvtx.range_push("prefetcher.next()")
         input, target = prefetcher.next()
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-
-        # Pop range "Body of iteration {}".format(i)
-        if args.prof >= 0: torch.cuda.nvtx.range_pop()
-
-        if args.prof >= 0 and i == args.prof + 10:
-            print("Profiling ended at iteration {}".format(i))
-            torch.cuda.cudart().cudaProfilerStop()
-            quit()
 
 
 def validate(val_loader, model, criterion):
@@ -419,7 +383,7 @@ def validate(val_loader, model, criterion):
 
     end = time.time()
 
-    prefetcher = data_prefetcher(val_loader)
+    prefetcher = DataPrefetcher(val_loader)
     input, target = prefetcher.next()
     i = 0
     while input is not None:
@@ -511,9 +475,6 @@ def adjust_learning_rate(optimizer, epoch, step, len_epoch):
     if epoch < 5:
         lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
 
-    # if(args.local_rank == 0):
-    #     print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
-
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -539,6 +500,7 @@ def reduce_tensor(tensor):
     dist.all_reduce(rt, op=dist.reduce_op.SUM)
     rt /= args.world_size
     return rt
+
 
 if __name__ == '__main__':
     main()
