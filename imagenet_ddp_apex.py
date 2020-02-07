@@ -10,17 +10,16 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.optim
-import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+import apex
 from apex.parallel import DistributedDataParallel as DDP
 from apex.fp16_utils import *
 from apex import amp, optimizers
-from apex.multi_tensor_apply import multi_tensor_applier
 
 
 def fast_collate(batch, memory_format):
@@ -29,7 +28,7 @@ def fast_collate(batch, memory_format):
     targets = torch.tensor([target[1] for target in batch], dtype=torch.int64)
     w = imgs[0].size[0]
     h = imgs[0].size[1]
-    tensor = torch.zeros((len(imgs), 3, h, w), dtype=torch.uint8).contiguous(memory_format=memory_format)
+    tensor = torch.zeros( (len(imgs), 3, h, w), dtype=torch.uint8).contiguous(memory_format=memory_format)
     for i, img in enumerate(imgs):
         nump_array = np.asarray(img, dtype=np.uint8)
         if nump_array.ndim < 3:
@@ -53,17 +52,25 @@ def parse():
                         ' | '.join(model_names) +
                         ' (default: resnet50)')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                        help='number of data loading workers (default: 4)')
+                        help='number of data loading workers (default: 4)'
+                        'these are different from the processes that '
+                        'run the programe. they are just for data loading')
     parser.add_argument('--epochs', default=90, type=int, metavar='N',
                         help='number of total epochs to run')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
-                        metavar='N', help='mini-batch size per process (default: 256)')
+    parser.add_argument('-b', '--batch-size', default=224, type=int,
+                        metavar='N',
+                        help='mini-batch size per GPU (default: 224)'
+                             'has to be a multiple of 8 to make use of Tensor'
+                             'Cores. for a GPU < 16 GB, max batch size is 224')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                        metavar='LR', help='Initial learning rate.  Will be scaled by <global batch size>/256:'
-                                           'args.lr = args.lr*float(args.batch_size*args.world_size)/256.'
-                                           'A warmup schedule will also be applied over the first 5 epochs.')
+                        metavar='LR',
+                        help='Initial learning rate.  Will be scaled by '
+                             '<global batch size>/256: args.lr = args.lr*'
+                             'float(args.batch_size*args.world_size)/256.'
+                             'A warmup schedule will also be applied over '
+                             'the first 5 epochs.')
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
@@ -77,21 +84,16 @@ def parse():
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
 
-    parser.add_argument('--world-size', default=-1, type=int,
-                        help='number of nodes for distributed training')
-    parser.add_argument("--rank", default=0, type=int)
-    parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
-                        help='url used to set up distributed training. This should be'
-                             'the IP address and open port number of the master node')
+    parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument('--sync_bn', action='store_true',
                         help='enabling apex sync BN.')
-    parser.add_argument('--dist-backend', default='nccl', type=str,
-                        help='distributed backend')
 
     parser.add_argument('--opt-level', type=str)
     parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
     parser.add_argument('--loss-scale', type=str, default=None)
+    parser.add_argument('--channels-last', type=bool, default=False)
     args = parser.parse_args()
+
     return args
 
 
@@ -104,41 +106,32 @@ def main():
     print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
     print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
 
-    # cudnn will look for the optimal set of algorithms for that
-    # particular configuration. this will have faster runtime if
-    # your input sizes does not change at each iteration
     cudnn.benchmark = True
     best_prec1 = 0
 
-    args.distributed = int(args.world_size) > 1
-    ngpus_per_node = torch.cuda.device_count()
-    print("Using {} GPUs per node".format(ngpus_per_node))
+    args.distributed = False
+    if 'WORLD_SIZE' in os.environ:
+        args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-    # on each node we have: ngpus_per_node processes and ngpus_per_node gpus
-    # that is, 1 process for each gpu on each node.
-    # world_size is the total number of processes to run
-    args.world_size = ngpus_per_node * args.world_size
+    args.gpu = 0
+    args.world_size = 1
 
-    # Use torch.multiprocessing.spawn to launch distributed processes: the
-    # main_worker process function
-    mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
-
-
-def main_worker(gpu, ngpus_per_node, args):
-    print("Use GPU: {} for training".format(gpu))
-
-    # For multiprocessing distributed training, rank needs to be the
-    # global rank among all the processes across all nodes
-    # This is “blocking,” meaning that no process will continue until all processes have joined.
-    args.rank = args.rank * ngpus_per_node + gpu
-    dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
-                            world_size=args.world_size, rank=args.rank)
-
-    torch.cuda.set_device(args.gpu)
+    if args.distributed:
+        # this will be 0-3 if you have 4 GPUs on curr node
+        args.gpu = args.local_rank
+        torch.cuda.set_device(args.gpu)
+        torch.distributed.init_process_group(backend='nccl',
+                                             init_method='env://')
+        # this is the total # of GPUs across all nodes
+        # if using 2 nodes with 4 GPUs each, world size is 8
+        args.world_size = torch.distributed.get_world_size()
 
     assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
-    memory_format = torch.contiguous_format
+    if args.channels_last:
+        memory_format = torch.channels_last
+    else:
+        memory_format = torch.contiguous_format
 
     # create model
     if args.pretrained:
@@ -149,15 +142,13 @@ def main_worker(gpu, ngpus_per_node, args):
         model = models.__dict__[args.arch]()
 
     if args.sync_bn:
-        import apex
         print("using apex synced BN")
         model = apex.parallel.convert_syncbn_model(model)
 
-    model = model.cuda(gpu).to(memory_format=memory_format)
+    model = model.cuda()
 
-    # Scale learning rate based on global batch size
-    # When the minibatch size is multiplied by k, multiply the learning rate by k
-    args.lr = args.lr*float(args.batch_size*args.world_size)/256.
+    # Scale init learning rate based on global batch size
+    args.lr = args.lr * float(args.batch_size*args.world_size)/256.
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
@@ -167,8 +158,7 @@ def main_worker(gpu, ngpus_per_node, args):
     model, optimizer = amp.initialize(model, optimizer,
                                       opt_level=args.opt_level,
                                       keep_batchnorm_fp32=args.keep_batchnorm_fp32,
-                                      loss_scale=args.loss_scale
-                                      )
+                                      loss_scale=args.loss_scale)
 
     # For distributed training, wrap the model with apex.parallel.DistributedDataParallel.
     # This must be done AFTER the call to amp.initialize.  If model = DDP(model) is called
@@ -207,8 +197,6 @@ def main_worker(gpu, ngpus_per_node, args):
 
     if args.arch == "inception_v3":
         raise RuntimeError("Currently, inception_v3 is not supported by this example.")
-        # crop_size = 299
-        # val_size = 320 # I chose this value arbitrarily, we can adjust.
     else:
         crop_size = 224
         val_size = 256
@@ -226,6 +214,8 @@ def main_worker(gpu, ngpus_per_node, args):
             transforms.CenterCrop(crop_size),
         ]))
 
+    # makes sure that each process gets a different slice of the training data
+    # during distributed training
     train_sampler = None
     val_sampler = None
     if args.distributed:
@@ -234,6 +224,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     collate_fn = lambda b: fast_collate(b, memory_format)
 
+    # notice we turn off shuffling and use distributed data sampler
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler, collate_fn=collate_fn)
@@ -260,7 +251,8 @@ def main_worker(gpu, ngpus_per_node, args):
         prec1 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
-        # only one node needs to save
+        # since all GPUs on curr node will produce output
+        # only allow GPU0 to print training states
         if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
@@ -269,17 +261,19 @@ def main_worker(gpu, ngpus_per_node, args):
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_prec1': best_prec1,
-                'optimizer' : optimizer.state_dict(),
+                'optimizer': optimizer.state_dict(),
             }, is_best)
 
 
-class DataPrefetcher:
+class DataPrefetcher():
+    """
+    With Amp, it isn't necessary to manually convert data to half.
+    """
     def __init__(self, loader):
         self.loader = iter(loader)
         self.stream = torch.cuda.Stream()
         self.mean = torch.tensor([0.485 * 255, 0.456 * 255, 0.406 * 255]).cuda().view(1,3,1,1)
         self.std = torch.tensor([0.229 * 255, 0.224 * 255, 0.225 * 255]).cuda().view(1,3,1,1)
-        # With Amp, it isn't necessary to manually convert data to half.
         self.preload()
 
     def preload(self):
@@ -306,7 +300,6 @@ class DataPrefetcher:
             # self.next_input = self.next_input_gpu
             # self.next_target = self.next_target_gpu
 
-            # With Amp, it isn't necessary to manually convert data to half.
             self.next_input = self.next_input.float()
             self.next_input = self.next_input.sub_(self.mean).div_(self.std)
 
@@ -337,7 +330,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = 0
     while input is not None:
         i += 1
-
         adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         # compute output
@@ -347,6 +339,8 @@ def train(train_loader, model, criterion, optimizer, epoch):
         # compute gradient and do SGD step
         optimizer.zero_grad()
 
+        # Mixed-precision training requires that the loss is scaled in order
+        # to prevent the gradients from underflow
         with amp.scale_loss(loss, optimizer) as scaled_loss:
             scaled_loss.backward()
 
@@ -461,7 +455,9 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 
 class AverageMeter(object):
-    """Computes and stores the average and current value"""
+    """
+    Computes and stores the average and current value
+    """
     def __init__(self):
         self.reset()
 
@@ -487,11 +483,7 @@ def adjust_learning_rate(optimizer, epoch, step, len_epoch):
 
     lr = args.lr*(0.1**factor)
 
-    """Warmup
-    start from a learning rate of η and increment 
-    it by a constant amount at each iteration such 
-    that it reaches ηˆ = kη after 5 epochs
-    """
+    """Warmup"""
     if epoch < 5:
         lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
 
