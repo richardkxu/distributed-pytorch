@@ -10,6 +10,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.optim
+import torch.multiprocessing as mp
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
@@ -76,9 +77,16 @@ def parse():
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
 
-    parser.add_argument("--local_rank", default=0, type=int)
+    parser.add_argument('--world-size', default=-1, type=int,
+                        help='number of nodes for distributed training')
+    parser.add_argument("--rank", default=0, type=int)
+    parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
+                        help='url used to set up distributed training. This should be'
+                             'the IP address and open port number of the master node')
     parser.add_argument('--sync_bn', action='store_true',
                         help='enabling apex sync BN.')
+    parser.add_argument('--dist-backend', default='nccl', type=str,
+                        help='distributed backend')
 
     parser.add_argument('--opt-level', type=str)
     parser.add_argument('--keep-batchnorm-fp32', type=str, default=None)
@@ -102,19 +110,31 @@ def main():
     cudnn.benchmark = True
     best_prec1 = 0
 
-    args.distributed = False
-    if 'WORLD_SIZE' in os.environ:
-        args.distributed = int(os.environ['WORLD_SIZE']) > 1
+    args.distributed = int(args.world_size) > 1
+    ngpus_per_node = torch.cuda.device_count()
+    print("Using {} GPUs per node".format(ngpus_per_node))
 
-    args.gpu = 0
-    args.world_size = 1
+    # on each node we have: ngpus_per_node processes and ngpus_per_node gpus
+    # that is, 1 process for each gpu on each node.
+    # world_size is the total number of processes to run
+    args.world_size = ngpus_per_node * args.world_size
 
-    if args.distributed:
-        args.gpu = args.local_rank
-        torch.cuda.set_device(args.gpu)
-        torch.distributed.init_process_group(backend='nccl',
-                                             init_method='env://')
-        args.world_size = torch.distributed.get_world_size()
+    # Use torch.multiprocessing.spawn to launch distributed processes: the
+    # main_worker process function
+    mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
+
+
+def main_worker(gpu, ngpus_per_node, args):
+    print("Use GPU: {} for training".format(gpu))
+
+    # For multiprocessing distributed training, rank needs to be the
+    # global rank among all the processes across all nodes
+    # This is “blocking,” meaning that no process will continue until all processes have joined.
+    args.rank = args.rank * ngpus_per_node + gpu
+    dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
+                            world_size=args.world_size, rank=args.rank)
+
+    torch.cuda.set_device(args.gpu)
 
     assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
@@ -133,7 +153,7 @@ def main():
         print("using apex synced BN")
         model = apex.parallel.convert_syncbn_model(model)
 
-    model = model.cuda().to(memory_format=memory_format)
+    model = model.cuda(gpu).to(memory_format=memory_format)
 
     # Scale learning rate based on global batch size
     # When the minibatch size is multiplied by k, multiply the learning rate by k
@@ -185,7 +205,7 @@ def main():
     traindir = os.path.join(args.data, 'train')
     valdir = os.path.join(args.data, 'val')
 
-    if(args.arch == "inception_v3"):
+    if args.arch == "inception_v3":
         raise RuntimeError("Currently, inception_v3 is not supported by this example.")
         # crop_size = 299
         # val_size = 320 # I chose this value arbitrarily, we can adjust.

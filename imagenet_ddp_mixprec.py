@@ -69,6 +69,7 @@ parser.add_argument('--dist-url', default='tcp://224.66.41.62:23456', type=str,
                          'the IP address and open port number of the master node')
 parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
+parser.add_argument('--opt-level', default='O2', type=str)
 parser.add_argument('--desired-acc', default=75.0, type=float,
                     help='Training will stop after desired-acc is reached.')
 
@@ -78,22 +79,21 @@ best_acc1 = 0
 def main():
     args = parser.parse_args()
 
-    ngpus_per_node = torch.cuda.device_count()
+    args.ngpus_per_node = torch.cuda.device_count()
 
     # on each node we have: ngpus_per_node processes and ngpus_per_node gpus
     # that is, 1 process for each gpu on each node.
     # world_size is the total number of processes to run
-    args.world_size = ngpus_per_node * args.world_size
+    args.world_size = args.ngpus_per_node * args.world_size
 
     # Use torch.multiprocessing.spawn to launch distributed processes: the
     # main_worker process function
-    mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
+    mp.spawn(main_worker, nprocs=args.ngpus_per_node, args=(args))
 
 
-def main_worker(gpu, ngpus_per_node, args):
+def main_worker(gpu, args):
     """
     :param gpu: this is the process index, mp.spawn will assign this for you, goes from 0 to ngpus - 1 for the curr node
-    :param ngpus_per_node:
     :param args:
     :return:
     """
@@ -103,7 +103,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # For multiprocessing distributed training, rank needs to be the
     # global rank among all the processes across all nodes
     # This is “blocking,” meaning that no process will continue until all processes have joined.
-    args.rank = args.rank * ngpus_per_node + gpu
+    args.rank = args.rank * args.ngpus_per_node + gpu
     dist.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                             world_size=args.world_size, rank=args.rank)
 
@@ -120,14 +120,18 @@ def main_worker(gpu, ngpus_per_node, args):
     # DistributedDataParallel will use all available devices.
     torch.cuda.set_device(gpu)
     model.cuda(gpu)
+
     # When using a single GPU per process and per
-    # DistributedDataParallel, we need to divide the batch size
+    # DistributedDataParallel, we need to divide the per node batch size
     # ourselves based on the total number of GPUs we have
-    args.batch_size = int(args.batch_size / ngpus_per_node)  # calculate local batch size for each GPU
-    args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
+    args.batch_size = int(args.batch_size / args.ngpus_per_node)  # calculate local batch size for each GPU
+    args.workers = int((args.workers + args.ngpus_per_node - 1) / args.ngpus_per_node)
 
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda(gpu)
+
+    # Scale learning rate based on global batch size
+    args.lr = args.lr * float(args.batch_size * args.ngpus_per_node * args.world_size) / 256.
 
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
                                 momentum=args.momentum,
@@ -137,7 +141,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # the model must already be on the correct GPU before calling amp.initialize.
     # The opt_level goes from O0 through O3, which uses different degrees of mixed-precision
     # We no longer have to specify the GPUs because Apex only allows one GPU per process.
-    model, optimizer = amp.initialize(model, optimizer, opt_level='O2')
+    model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
     model = DDP(model)
     ##############################################################
 
@@ -209,7 +213,6 @@ def main_worker(gpu, ngpus_per_node, args):
     end = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, gpu, args)
@@ -217,64 +220,35 @@ def main_worker(gpu, ngpus_per_node, args):
         # evaluate on validation set
         acc1 = validate(val_loader, model, criterion, gpu, args)
 
-        # remember best acc@1 and save checkpoint
-        is_best = acc1 > best_acc1
-        best_acc1 = max(acc1, best_acc1)
-
-        if args.rank % ngpus_per_node == 0:
-            time_elapsed = time.time() - end
+        if args.rank % args.ngpus_per_node == 0:
+            # remember best acc@1 and save checkpoint
+            is_best = acc1 > best_acc1
+            best_acc1 = max(acc1, best_acc1)
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
                 'optimizer': optimizer.state_dict(),
-                'training_time': time_elapsed,
             }, is_best)
-            # stop training once reach desired accuracy
-            if args.desired_acc and best_acc1 >= args.desired_acc:
-                mins, secs = divmod(time_elapsed, 60)
-                hrs, mins = divmod(mins, 60)
-                print("Reached acc of: {:6.2f}\n"
-                      "Time elapsed: {:.2f} hrs {:.2f} mins {:.2f} secs | {:.2f} secs\n"
-                      "Total # epoches: {:.2f}\n"
-                      "# of train steps per epoch: {:.2f}\n"
-                      "# of val steps per epoch: {:.2f}\n"
-                      "Length of trainset: {:.2f}\n"
-                      "Length of valset: {:.2f}\n".format(
-                      best_acc1,
-                      hrs, mins, secs, time_elapsed,
-                      epoch + 1,
-                      len(train_loader),
-                      len(val_loader),
-                      len(train_dataset),
-                      len(val_dataset)
-                     ))
-                break
 
 
 def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
-    batch_time = AverageMeter('Time', ':6.3f')
-    data_time = AverageMeter('Data', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
-    speed = AverageMeter('Speed', ':6.2f')
-    progress = ProgressMeter(
-        len(train_loader),
-        [top1, top5, speed, batch_time, losses],
-        prefix="Epoch: [{}]".format(epoch))
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
 
     # switch to train mode
     model.train()
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
-        # measure data loading time
-        data_time.update(time.time() - end)
 
         images = images.cuda(gpu, non_blocking=True)
         target = target.cuda(gpu, non_blocking=True)
+
+        adjust_learning_rate(optimizer, epoch, i, len(train_loader), args)
 
         # compute output
         output = model(images)
@@ -297,25 +271,28 @@ def train(train_loader, model, criterion, optimizer, epoch, gpu, args):
         optimizer.step()
 
         # measure elapsed time
-        t = time.time() - end
-        batch_time.update(t)
-        speed.update(args.world_size*args.batch_size/t)
+        batch_time.update(time.time() - end)
         end = time.time()
 
         if i % args.print_freq == 0:
-            progress.display(i)
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                  'Speed {3:.3f} ({4:.3f})\t'
+                  'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
+                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                  epoch, i, len(train_loader),
+                  args.world_size * args.batch_size * args.ngpus_per_node / batch_time.val,
+                  args.world_size * args.batch_size * args.ngpus_per_node / batch_time.avg,
+                  batch_time=batch_time,
+                  loss=losses, top1=top1, top5=top5))
 
 
 def validate(val_loader, model, criterion, gpu, args):
-    batch_time = AverageMeter('Time', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
-    speed = AverageMeter('Speed', ':6.2f')
-    progress = ProgressMeter(
-        len(val_loader),
-        [top1, top5, speed, batch_time, losses],
-        prefix='Test: ')
+    batch_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -337,13 +314,21 @@ def validate(val_loader, model, criterion, gpu, args):
             top5.update(acc5[0], images.size(0))
 
             # measure elapsed time
-            t = time.time() - end
-            batch_time.update(t)
-            speed.update(args.world_size*args.batch_size/t)
+            batch_time.update(time.time() - end)
             end = time.time()
 
             if i % args.print_freq == 0:
-                progress.display(i)
+                print('Test: [{0}/{1}]\t'
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'Speed {2:.3f} ({3:.3f})\t'
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                      i, len(val_loader),
+                      args.world_size * args.batch_size * args.ngpus_per_node / batch_time.val,
+                      args.world_size * args.batch_size * args.ngpus_per_node / batch_time.avg,
+                      batch_time=batch_time, loss=losses,
+                      top1=top1, top5=top5))
 
         # TODO: this should also be done with the ProgressMeter
         print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
@@ -360,9 +345,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
-    def __init__(self, name, fmt=':f'):
-        self.name = name
-        self.fmt = fmt
+    def __init__(self):
         self.reset()
 
     def reset(self):
@@ -377,31 +360,23 @@ class AverageMeter(object):
         self.count += n
         self.avg = self.sum / self.count
 
-    def __str__(self):
-        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
-        return fmtstr.format(**self.__dict__)
 
+def adjust_learning_rate(optimizer, epoch, step, len_epoch, args):
+    """LR schedule that should yield 76% converged accuracy with batch size 256"""
+    factor = epoch // 30
 
-class ProgressMeter(object):
-    def __init__(self, num_batches, meters, prefix=""):
-        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
-        self.meters = meters
-        self.prefix = prefix
+    if epoch >= 80:
+        factor = factor + 1
 
-    def display(self, batch):
-        entries = [self.prefix + self.batch_fmtstr.format(batch)]
-        entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
+    lr = args.lr*(0.1**factor)
 
-    def _get_batch_fmtstr(self, num_batches):
-        num_digits = len(str(num_batches // 1))
-        fmt = '{:' + str(num_digits) + 'd}'
-        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+    """Warmup"""
+    if epoch < 5:
+        lr = lr*float(1 + step + epoch*len_epoch)/(5.*len_epoch)
 
+    # if(args.local_rank == 0):
+    #     print("epoch = {}, step = {}, lr = {}".format(epoch, step, lr))
 
-def adjust_learning_rate(optimizer, epoch, args):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
