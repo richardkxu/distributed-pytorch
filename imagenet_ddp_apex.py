@@ -148,7 +148,10 @@ def main():
 
     model = model.cuda()
 
-    writer = SummaryWriter(comment="_resnet50_gpux8_b224_cpu20_optO2")
+    print("### global rank is: {}".format(torch.distributed.get_rank()))
+    # initialize tb logging
+    if torch.distributed.get_rank() == 0:
+        writer = SummaryWriter(comment="_resnet50_gpux8_b224_cpu20_optO2")
 
     # Scale init learning rate based on global batch size
     args.lr = args.lr * float(args.batch_size*args.world_size)/256.
@@ -266,19 +269,19 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
-
-            # log train and val states to tensorboard
-            writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
-            writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
-            writer.add_scalar('Time/train', train_batch_time, epoch + 1)
-            writer.add_scalar('Time/val', val_batch_time, epoch + 1)
-            writer.add_scalar('Loss/train', train_losses, epoch + 1)
-            writer.add_scalar('Loss/val', val_losses, epoch + 1)
-            writer.add_scalar('Top1/train', train_top1, epoch + 1)
-            writer.add_scalar('Top1/val', val_top1, epoch + 1)
-            writer.add_scalar('Top5/train', train_top5, epoch + 1)
-            writer.add_scalar('Top5/val', val_top5, epoch + 1)
-    if args.local_rank == 0:
+            if torch.distributed.get_rank() == 0:
+                # log train and val states to tensorboard
+                writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
+                writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
+                writer.add_scalar('Time/train', train_batch_time, epoch + 1)
+                writer.add_scalar('Time/val', val_batch_time, epoch + 1)
+                writer.add_scalar('Loss/train', train_losses, epoch + 1)
+                writer.add_scalar('Loss/val', val_losses, epoch + 1)
+                writer.add_scalar('Top1/train', train_top1, epoch + 1)
+                writer.add_scalar('Top1/val', val_top1, epoch + 1)
+                writer.add_scalar('Top5/train', train_top5, epoch + 1)
+                writer.add_scalar('Top5/val', val_top5, epoch + 1)
+    if torch.distributed.get_rank() == 0:
         writer.close()
     return
 
