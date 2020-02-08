@@ -108,7 +108,7 @@ Node 3:
 python  imagenet_ddp.py -a resnet50 --dist-url 'tcp://MASTER_IP:MASTER_PORT' --dist-backend 'nccl' --world-size 4 --rank 3 --desired-acc 0.75 /home/shared/imagenet/raw/
 ```
 
-## FP16 and FP32 mixed precision training with NVIDIA `Apex`
+## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex`
 
 References:
 
@@ -132,7 +132,34 @@ Advantages:
 - take advantage of NVIDIA Tensor Cores for matrix multiplications and convolutions
 - don't need to explicitly convert your model, or the input data, to half().
 
-Use `imagenet_ddp_mixprec.py` for training. It is run the same way as the DDP training script.
+**`imagenet_ddp_mixprec.py` is deprecated. Use `imagenet_ddp_apex.py`.**
+
+### Single node, multiple GPUs:
+
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
+
+### Multiple nodes, multiple GPUs:
+
+To run your programe on 2 nodes with 4 GPU each, you will need to open 2 terminals and run slightly different command on each node.
+
+Node 0:
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
+
+- torch distributed launch module: https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
+- `--nproc_per_node`: number of GPUs on the current node, each process is bound to a single GPU
+- `----node_rank`: rank of the current node, should be an int between `0` and `--world-size - 1`
+- `--master_addr`: IP address for the master node of your choice. type `str`
+- `--master_port`: open port number on the master node. type `int`. if you don't know, use `8888`
+- `--workers`: # of data loading workers for the current node. this is different from the processes that run the programe on each GPU. the total # of processes = # of data loading workers + # of GPUs (one process to run each GPU)
+
+Node 1:
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
 
 
 ## Distributed training with `Horovod`
