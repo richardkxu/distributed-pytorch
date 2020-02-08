@@ -161,6 +161,17 @@ Node 1:
 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 ```
 
+### FQA
+
+1. The following message is normal behavior with dynamic loss scaling, and it usually happens in the first few iterations because Amp begins by trying a high loss scale.
+```
+Gradient overflow.  Skipping step, loss scaler 0 reducing loss scale to 4096.0Gradient overflow.
+```
+
+2. For multi-process training, even if you `ctrl C` on each compute node, there will still be some processes alive. To clean up all python processes on curr node, use:
+```
+pkill -9 python
+```
 
 ## Distributed training with `Horovod`
 
