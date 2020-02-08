@@ -155,6 +155,7 @@ python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 -
 - `--master_addr`: IP address for the master node of your choice. type `str`
 - `--master_port`: open port number on the master node. type `int`. if you don't know, use `8888`
 - `--workers`: # of data loading workers for the current node. this is different from the processes that run the programe on each GPU. the total # of processes = # of data loading workers + # of GPUs (one process to run each GPU)
+- `-b`: per GPU batch size, for a 16 GB GPU, `224` is the max batch size. Need to be a multiple of 8 to make use of Tensor Cores. **If you are using tensorboard logging, you need to assign a slightly smaller batch size!**
 
 Node 1:
 ```bash

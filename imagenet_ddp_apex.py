@@ -126,6 +126,7 @@ def main():
         # this is the total # of GPUs across all nodes
         # if using 2 nodes with 4 GPUs each, world size is 8
         args.world_size = torch.distributed.get_world_size()
+    print("### global rank of curr node: {}".format(torch.distributed.get_rank()))
 
     assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
@@ -148,8 +149,8 @@ def main():
 
     model = model.cuda()
 
-    print("### global rank is: {}".format(torch.distributed.get_rank()))
-    # initialize tb logging
+    # initialize tb logging, you don't want to "double log"
+    # so only allow GPU0 to launch tb
     if torch.distributed.get_rank() == 0:
         writer = SummaryWriter(comment="_resnet50_gpux8_b224_cpu20_optO2")
 
