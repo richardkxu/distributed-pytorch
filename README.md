@@ -174,6 +174,12 @@ Gradient overflow.  Skipping step, loss scaler 0 reducing loss scale to 4096.0Gr
 pkill -9 python
 ```
 
+## `TensorBoard`
+`TensorBoard` is now a built-in module in PyTorch: `torch.utils.tensorboard`
+- https://pytorch.org/docs/stable/tensorboard.html
+- https://pytorch.org/tutorials/intermediate/tensorboard_tutorial.html?highlight=tensorboard
+- https://www.tensorflow.org/tensorboard/get_started
+
 ## Distributed training with `Horovod`
 
 References:
