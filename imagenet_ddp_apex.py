@@ -247,6 +247,8 @@ def main():
         validate(val_loader, model, criterion)
         return
 
+    if torch.distributed.get_rank() == 0:
+        start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -284,6 +286,10 @@ def main():
                 writer.add_scalar('Top5/val', val_top5, epoch + 1)
     if torch.distributed.get_rank() == 0:
         writer.close()
+        time_elapse = time.time() - start_time
+        mins, secs = divmod(time_elapse, 60)
+        hrs, mins = divmod(mins, 60)
+        print('### Training Time: {:.2f} hrs {:.2f} mins {:.2f} secs'.format(hrs, mins, secs))
     return
 
 
