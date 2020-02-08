@@ -15,6 +15,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from torch.utils.tensorboard import SummaryWriter
 
 import apex
 from apex.parallel import DistributedDataParallel as DDP
@@ -147,6 +148,8 @@ def main():
 
     model = model.cuda()
 
+    writer = SummaryWriter(comment="_resnet50_gpux8_b224_cpu20_optO2")
+
     # Scale init learning rate based on global batch size
     args.lr = args.lr * float(args.batch_size*args.world_size)/256.
     optimizer = torch.optim.SGD(model.parameters(), args.lr,
@@ -245,17 +248,17 @@ def main():
             train_sampler.set_epoch(epoch)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch)
+        train_throughput, train_batch_time, train_losses, train_top1, train_top5 = train(train_loader, model, criterion, optimizer, epoch)
 
         # evaluate on validation set
-        prec1 = validate(val_loader, model, criterion)
+        val_throughput, val_batch_time, val_losses, val_top1, val_top5 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
         # since all GPUs on curr node will produce output
         # only allow GPU0 to print training states
         if args.local_rank == 0:
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
+            is_best = val_top1 > best_prec1
+            best_prec1 = max(val_top1, best_prec1)
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
@@ -263,6 +266,21 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
+
+            # log train and val states to tensorboard
+            writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
+            writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
+            writer.add_scalar('Time/train', train_batch_time, epoch + 1)
+            writer.add_scalar('Time/val', val_batch_time, epoch + 1)
+            writer.add_scalar('Loss/train', train_losses, epoch + 1)
+            writer.add_scalar('Loss/val', val_losses, epoch + 1)
+            writer.add_scalar('Top1/train', train_top1, epoch + 1)
+            writer.add_scalar('Top1/val', val_top1, epoch + 1)
+            writer.add_scalar('Top5/train', train_top5, epoch + 1)
+            writer.add_scalar('Top5/val', val_top5, epoch + 1)
+    if args.local_rank == 0:
+        writer.close()
+    return
 
 
 class DataPrefetcher():
@@ -372,18 +390,25 @@ def train(train_loader, model, criterion, optimizer, epoch):
             end = time.time()
 
             if args.local_rank == 0:
+                curr_throughput = args.world_size*args.batch_size/batch_time.val
+                avg_throughput = args.world_size*args.batch_size/batch_time.avg
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Speed {3:.3f} ({4:.3f})\t'
+                      'Throughput {3:.3f} ({4:.3f})\t'
                       'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
                       'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                       'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                        epoch, i, len(train_loader),
-                       args.world_size*args.batch_size/batch_time.val,
-                       args.world_size*args.batch_size/batch_time.avg,
+                       curr_throughput, avg_throughput,
                        batch_time=batch_time,
-                       loss=losses, top1=top1, top5=top5))
+                       loss=losses,
+                       top1=top1,
+                       top5=top5))
         input, target = prefetcher.next()
+
+    # return training states for the curr epoch
+    avg_throughput = args.world_size * args.batch_size / batch_time.avg
+    return avg_throughput, batch_time.avg, losses.avg, top1.avg, top5.avg
 
 
 def validate(val_loader, model, criterion):
@@ -428,6 +453,8 @@ def validate(val_loader, model, criterion):
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
+            curr_throughput = args.world_size * args.batch_size / batch_time.val
+            avg_throughput = args.world_size * args.batch_size / batch_time.avg
             print('Test: [{0}/{1}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Speed {2:.3f} ({3:.3f})\t'
@@ -435,17 +462,20 @@ def validate(val_loader, model, criterion):
                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                    i, len(val_loader),
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
-                   batch_time=batch_time, loss=losses,
-                   top1=top1, top5=top5))
-
+                   curr_throughput,
+                   avg_throughput,
+                   batch_time=batch_time,
+                   loss=losses,
+                   top1=top1,
+                   top5=top5))
         input, target = prefetcher.next()
 
     print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
-    return top1.avg
+    # return val states for the curr epoch
+    avg_throughput = args.world_size * args.batch_size / batch_time.avg
+    return avg_throughput, batch_time.avg, losses.avg, top1.avg, top5.avg
 
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
