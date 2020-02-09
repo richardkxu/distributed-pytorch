@@ -275,7 +275,7 @@ def main():
                 'state_dict': model.state_dict(),
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
-            }, is_best)
+            }, is_best, writer.log_dir)
         # log train and val states to tensorboard
         # to prevent "double logging", only allow one GPU to write to tb
         if torch.distributed.get_rank() == 0:
@@ -495,10 +495,17 @@ def validate(val_loader, model, criterion):
     return avg_throughput, batch_time.avg, losses.avg, top1.avg, top5.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, out_path):
+    if out_path:
+        filename = os.path.join(out_path, 'checkpoint.pth.tar')
+        bestfile = os.path.join(out_path, 'model_best.pth.tar')
+    else:
+        filename = 'checkpoint.pth.tar'
+        bestfile = 'model_best.pth.tar'
+
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, bestfile)
 
 
 class AverageMeter(object):

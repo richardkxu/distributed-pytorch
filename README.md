@@ -137,7 +137,7 @@ Advantages:
 ### Single node, multiple GPUs:
 
 ```bash
-python -m torch.distributed.launch --nproc_per_node=4 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+python -m torch.distributed.launch --nproc_per_node=4 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 ```
 
 ### Multiple nodes, multiple GPUs:
@@ -146,7 +146,7 @@ To run your programe on 2 nodes with 4 GPU each, you will need to open 2 termina
 
 Node 0:
 ```bash
-python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 ```
 
 - torch distributed launch module: https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
@@ -159,7 +159,7 @@ python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 -
 
 Node 1:
 ```bash
-python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 224 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 ```
 
 ### FQA
