@@ -394,6 +394,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
             # measure time
             curr_t = (time.time() - end)/args.print_freq
+            curr_t = torch.tensor(curr_t)  # need to be a torch tensor to all reduce
             end = time.time()
 
             # Average across all global processes for logging
@@ -409,7 +410,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
             losses.update(to_python_float(reduced_loss), input.size(0))
             top1.update(to_python_float(prec1), input.size(0))
             top5.update(to_python_float(prec5), input.size(0))
-            batch_time.update(curr_t)
+            batch_time.update(to_python_float(curr_t))
 
             torch.cuda.synchronize()
 
@@ -461,7 +462,8 @@ def validate(val_loader, model, criterion):
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
         # measure time
-        curr_t = time.time() - end
+        curr_t = (time.time() - end) / args.print_freq
+        curr_t = torch.tensor(curr_t)  # need to be a torch tensor to all reduce
         end = time.time()
 
         if args.distributed:
@@ -475,7 +477,7 @@ def validate(val_loader, model, criterion):
         losses.update(to_python_float(reduced_loss), input.size(0))
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
-        batch_time.update(curr_t)
+        batch_time.update(to_python_float(curr_t))
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
