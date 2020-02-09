@@ -392,17 +392,11 @@ def train(train_loader, model, criterion, optimizer, epoch):
             # Measure accuracy
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
-            # measure time
-            curr_t = (time.time() - end)/args.print_freq
-            curr_t = torch.tensor(curr_t)  # need to be a torch tensor to all reduce
-            end = time.time()
-
             # Average across all global processes for logging
             if args.distributed:
                 reduced_loss = reduce_tensor(loss.data)
                 prec1 = reduce_tensor(prec1)
                 prec5 = reduce_tensor(prec5)
-                curr_t = reduce_tensor(curr_t)
             else:
                 reduced_loss = loss.data
 
@@ -410,9 +404,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
             losses.update(to_python_float(reduced_loss), input.size(0))
             top1.update(to_python_float(prec1), input.size(0))
             top5.update(to_python_float(prec5), input.size(0))
-            batch_time.update(to_python_float(curr_t))
 
             torch.cuda.synchronize()
+            batch_time.update((time.time() - end) / args.print_freq)
+            end = time.time()
 
             if args.local_rank == 0:
                 curr_throughput = args.world_size*args.batch_size/batch_time.val
@@ -461,23 +456,20 @@ def validate(val_loader, model, criterion):
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
-        # measure time
-        curr_t = (time.time() - end) / args.print_freq
-        curr_t = torch.tensor(curr_t)  # need to be a torch tensor to all reduce
-        end = time.time()
-
         if args.distributed:
             reduced_loss = reduce_tensor(loss.data)
             prec1 = reduce_tensor(prec1)
             prec5 = reduce_tensor(prec5)
-            curr_t = reduce_tensor(curr_t)
         else:
             reduced_loss = loss.data
 
         losses.update(to_python_float(reduced_loss), input.size(0))
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
-        batch_time.update(to_python_float(curr_t))
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
@@ -510,9 +502,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 
 class AverageMeter(object):
-    """
-    Computes and stores the average and current value
-    """
+    """Computes and stores the average and current value"""
     def __init__(self):
         self.reset()
 
