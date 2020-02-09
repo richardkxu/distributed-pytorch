@@ -85,7 +85,7 @@ def parse():
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
 
-    parser.add_argument('--local-rank', default=0, type=int)
+    parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--sync-bn', action='store_true',
                         help='enabling apex sync BN.')
 
