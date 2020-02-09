@@ -85,8 +85,8 @@ def parse():
     parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                         help='use pre-trained model')
 
-    parser.add_argument("--local_rank", default=0, type=int)
-    parser.add_argument('--sync_bn', action='store_true',
+    parser.add_argument('--local-rank', default=0, type=int)
+    parser.add_argument('--sync-bn', action='store_true',
                         help='enabling apex sync BN.')
 
     parser.add_argument('--opt-level', type=str)
@@ -152,7 +152,11 @@ def main():
     # initialize tb logging, you don't want to "double log"
     # so only allow GPU0 to launch tb
     if torch.distributed.get_rank() == 0:
-        writer = SummaryWriter(comment="_resnet50_gpux8_b224_cpu20_optO2")
+        writer = SummaryWriter(comment="_{}_gpux{}_b{}_cpu{}_opt{}".format(args.arch,
+                                                                           args.world_size,
+                                                                           args.batch_size,
+                                                                           args.workers,
+                                                                           args.opt_level))
 
     # Scale init learning rate based on global batch size
     args.lr = args.lr * float(args.batch_size*args.world_size)/256.
@@ -254,7 +258,7 @@ def main():
             train_sampler.set_epoch(epoch)
 
         # train for one epoch
-        train_throughput, train_batch_time, train_losses, train_top1, train_top5 = train(train_loader, model, criterion, optimizer, epoch)
+        train_throughput, train_batch_time, train_losses, train_top1, train_top5, train_lr = train(train_loader, model, criterion, optimizer, epoch)
 
         # evaluate on validation set
         val_throughput, val_batch_time, val_losses, val_top1, val_top5 = validate(val_loader, model, criterion)
@@ -272,24 +276,30 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best)
-            if torch.distributed.get_rank() == 0:
-                # log train and val states to tensorboard
-                writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
-                writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
-                writer.add_scalar('Time/train', train_batch_time, epoch + 1)
-                writer.add_scalar('Time/val', val_batch_time, epoch + 1)
-                writer.add_scalar('Loss/train', train_losses, epoch + 1)
-                writer.add_scalar('Loss/val', val_losses, epoch + 1)
-                writer.add_scalar('Top1/train', train_top1, epoch + 1)
-                writer.add_scalar('Top1/val', val_top1, epoch + 1)
-                writer.add_scalar('Top5/train', train_top5, epoch + 1)
-                writer.add_scalar('Top5/val', val_top5, epoch + 1)
+        # log train and val states to tensorboard
+        # to prevent "double logging", only allow one GPU to write to tb
+        if torch.distributed.get_rank() == 0:
+            writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
+            writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
+            writer.add_scalar('Time/train', train_batch_time, epoch + 1)
+            writer.add_scalar('Time/val', val_batch_time, epoch + 1)
+            writer.add_scalar('Loss/train', train_losses, epoch + 1)
+            writer.add_scalar('Loss/val', val_losses, epoch + 1)
+            writer.add_scalar('Top1/train', train_top1, epoch + 1)
+            writer.add_scalar('Top1/val', val_top1, epoch + 1)
+            writer.add_scalar('Top5/train', train_top5, epoch + 1)
+            writer.add_scalar('Top5/val', val_top5, epoch + 1)
+            writer.add_scalar('Lr', train_lr, epoch + 1)
+
     if torch.distributed.get_rank() == 0:
         writer.close()
         time_elapse = time.time() - start_time
         mins, secs = divmod(time_elapse, 60)
         hrs, mins = divmod(mins, 60)
-        print('### Training Time: {:.2f} hrs {:.2f} mins {:.2f} secs'.format(hrs, mins, secs))
+        print('### Training Time: {:.2f} hrs {:.2f} mins {:.2f} secs | {:.2f} secs'.format(hrs, mins, secs,
+                                                                                           time_elapse))
+        print('### All Arguments:')
+        print(args)
     return
 
 
@@ -358,7 +368,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
     i = 0
     while input is not None:
         i += 1
-        adjust_learning_rate(optimizer, epoch, i, len(train_loader))
+        curr_lr = adjust_learning_rate(optimizer, epoch, i, len(train_loader))
 
         # compute output
         output = model(input)
@@ -382,11 +392,16 @@ def train(train_loader, model, criterion, optimizer, epoch):
             # Measure accuracy
             prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
-            # Average loss and accuracy across processes for logging
+            # measure time
+            curr_t = (time.time() - end)/args.print_freq
+            end = time.time()
+
+            # Average across all global processes for logging
             if args.distributed:
                 reduced_loss = reduce_tensor(loss.data)
                 prec1 = reduce_tensor(prec1)
                 prec5 = reduce_tensor(prec5)
+                curr_t = reduce_tensor(curr_t)
             else:
                 reduced_loss = loss.data
 
@@ -394,10 +409,9 @@ def train(train_loader, model, criterion, optimizer, epoch):
             losses.update(to_python_float(reduced_loss), input.size(0))
             top1.update(to_python_float(prec1), input.size(0))
             top5.update(to_python_float(prec5), input.size(0))
+            batch_time.update(curr_t)
 
             torch.cuda.synchronize()
-            batch_time.update((time.time() - end)/args.print_freq)
-            end = time.time()
 
             if args.local_rank == 0:
                 curr_throughput = args.world_size*args.batch_size/batch_time.val
@@ -418,7 +432,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
     # return training states for the curr epoch
     avg_throughput = args.world_size * args.batch_size / batch_time.avg
-    return avg_throughput, batch_time.avg, losses.avg, top1.avg, top5.avg
+    return avg_throughput, batch_time.avg, losses.avg, top1.avg, top5.avg, curr_lr
 
 
 def validate(val_loader, model, criterion):
@@ -446,20 +460,22 @@ def validate(val_loader, model, criterion):
         # measure accuracy and record loss
         prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
 
+        # measure time
+        curr_t = time.time() - end
+        end = time.time()
+
         if args.distributed:
             reduced_loss = reduce_tensor(loss.data)
             prec1 = reduce_tensor(prec1)
             prec5 = reduce_tensor(prec5)
+            curr_t = reduce_tensor(curr_t)
         else:
             reduced_loss = loss.data
 
         losses.update(to_python_float(reduced_loss), input.size(0))
         top1.update(to_python_float(prec1), input.size(0))
         top5.update(to_python_float(prec5), input.size(0))
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
+        batch_time.update(curr_t)
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
@@ -479,9 +495,6 @@ def validate(val_loader, model, criterion):
                    top1=top1,
                    top5=top5))
         input, target = prefetcher.next()
-
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-          .format(top1=top1, top5=top5))
 
     # return val states for the curr epoch
     avg_throughput = args.world_size * args.batch_size / batch_time.avg
@@ -529,6 +542,8 @@ def adjust_learning_rate(optimizer, epoch, step, len_epoch):
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+
+    return lr
 
 
 def accuracy(output, target, topk=(1,)):
