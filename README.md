@@ -6,12 +6,16 @@ We will cover the following training methods for PyTorch:
 - regular, single node, single GPU training
 - `torch.nn.DataParallel`
 - `torch.nn.DistributedDataParallel`
-- mixed precision training
+- mixed precision training with NVIDIA `Apex`
+- `TensorBoard` logging under distributed training context
 
 We will cover the following use cases:
 - Single node single GPU training
 - Single node multi-GPU training
 - Multi-node multi-GPU training
+
+## Results, Learning Curves, Visualizations
+- Please see `RESULTS.md`
 
 ## Requirements
 
