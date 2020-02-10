@@ -194,4 +194,4 @@ References:
 
 ## Acknowledgment
 
-Shout-out to all the references, blogs, code samples, figures... used in this tutorial!
+Shout-out to all the references, blogs, code samples... used in this tutorial!
