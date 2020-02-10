@@ -1,10 +1,13 @@
 # Training Logs
 
-# gpux8 (orange) vs gpux16 (blue)
-![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581276606895_image.png)
+# Training Curves Comparison
+![prec@1, prec@5](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359263014_image.png)
 
-![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581276660779_image.png)
+![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359356228_image.png)
 
+![Learning rate schedule](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359387425_image.png)
+
+![Throughput (img/sec), Batch time (sec)](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359228206_image.png)
 
 
 
@@ -27,8 +30,6 @@ Resource usage:
 
 
 
-
-
 # Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2
 
 All Arguments:
@@ -48,5 +49,27 @@ Resource usage:
 
 
 
+# Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2
 
+All Arguments:
+arch='resnet50', batch_size=208, channels_last=False, data='/home/shared/imagenet/raw/', distributed=True, epochs=90, evaluate=False, gpu=0, keep_batchnorm_fp32=None, local_rank=0, loss_scale=None, lr=0.325, momentum=0.9, opt_level='O2', pretrained=False, print_freq=10, resume='', start_epoch=0, sync_bn=False, weight_decay=0.0001, workers=20, world_size=4
+
+Training Time: 
+10.00 hrs 58.00 mins 56.00 secs | 39536 secs
+
+Last val: 
+Prec@1 76.240 Prec@5 93.070
+
+
+
+# Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2
+
+All Arguments:
+arch='resnet50', batch_size=208, channels_last=False, data='/home/shared/imagenet/raw/', distributed=True, epochs=81, evaluate=False, gpu=0, keep_batchnorm_fp32=None, local_rank=0, loss_scale=None, lr=0.1625, momentum=0.9, opt_level='O2', pretrained=False, print_freq=10, resume='', start_epoch=0, sync_bn=False, weight_decay=0.0001, workers=20, world_size=2
+
+Training Time: 
+20.00 hrs 36.00 mins 51.00 secs | 74211.11 secs
+
+Last val: (stops at 81th epoch)
+Prec@1 76.060 Prec@5 92.950
 
