@@ -266,7 +266,7 @@ def main():
         # remember best prec@1 and save checkpoint
         # since all GPUs on curr node will produce output
         # only allow GPU0 to print training states
-        if args.local_rank == 0:
+        if torch.distributed.get_rank() == 0:
             is_best = val_top1 > best_prec1
             best_prec1 = max(val_top1, best_prec1)
             save_checkpoint({
@@ -276,9 +276,9 @@ def main():
                 'best_prec1': best_prec1,
                 'optimizer': optimizer.state_dict(),
             }, is_best, writer.log_dir)
-        # log train and val states to tensorboard
-        # to prevent "double logging", only allow one GPU to write to tb
-        if torch.distributed.get_rank() == 0:
+
+            # log train and val states to tensorboard
+            # to prevent "double logging", only allow one GPU to write to tb
             writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
             writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
             writer.add_scalar('Time/train', train_batch_time, epoch + 1)
