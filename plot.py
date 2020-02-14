@@ -17,18 +17,19 @@ def plot_throughput():
 
 
 def plot_time_elapse():
-    x = np.array([2, 4, 8, 16])
-    t = np.array([74211.11, 39536, 20904, 10969.42])
+    x = np.array([2, 4, 8, 16, 32, 64])
+    t = np.array([74211.11, 39536, 20904.01, 10969.42, 6652.91, 4071.31])
 
     # linear
     plt.plot(x, t, 'o-')
+    plt.xticks(x)
+    plt.yticks(t)
     plt.xlabel('Number of GPUs')
-    plt.ylabel('Time in sec')
+    plt.ylabel('Time Elapse (secs)')
     plt.title('Training Time')
     plt.grid(True)
     plt.show()
 
 
 if __name__ == '__main__':
-    plot_throughput()
     plot_time_elapse()
