@@ -108,3 +108,6 @@ venv.bak/
 
 # mac
 .DS_Store
+
+# custome
+*.pth.tar
