@@ -15,7 +15,20 @@ We will cover the following use cases:
 - Multi-node multi-GPU training
 
 ## Results, Learning Curves, Visualizations
-- Please see `RESULTS.md`
+
+### Training Curves
+
+![](figures/top1_train.png) 
+
+![](figures/top1_val.png)
+
+### Scalability Analysis
+
+![](figures/training_throughput.png)
+    
+![](figures/training_time.png)
+
+- Please see `RESULTS.md` for more details
 
 ## Requirements
 
@@ -52,7 +65,7 @@ References:
 
 `torch.nn.DataParallel` is easier to use (just wrap the model and run your training script). However, because it uses one process to compute the model weights and then distribute them to each GPU on the current node during each batch, networking quickly becomes a bottle-neck and GPU utilization is often very low. Furthermore, it requires that all the GPUs be on the same node and doesn’t work with `Apex` for mixed-precision training.
 
-## Multi-processing Distributed Data Parallel (DDP)
+## Multi-processing Distributed Data Parallel (DDP), Deprecated
 
 Use cases:
 - Single node multi-GPU training
@@ -112,7 +125,7 @@ Node 3:
 python  imagenet_ddp.py -a resnet50 --dist-url 'tcp://MASTER_IP:MASTER_PORT' --dist-backend 'nccl' --world-size 4 --rank 3 --desired-acc 0.75 /home/shared/imagenet/raw/
 ```
 
-## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex`
+## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex`, Recommended
 
 References:
 

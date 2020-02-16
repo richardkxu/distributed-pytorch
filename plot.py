@@ -20,7 +20,8 @@ def plot_throughput():
     plt.ylabel('Training Throughput (images/sec)')
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig('figures/training_throughput.pdf')
+    # plt.savefig('figures/training_throughput.pdf')
+    plt.savefig('figures/training_throughput.png')
     plt.show()
 
 
@@ -36,7 +37,8 @@ def plot_training_time():
     plt.ylabel('Training Time (secs)')
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig('figures/training_time.pdf')
+    # plt.savefig('figures/training_time.pdf')
+    plt.savefig('figures/training_time.png')
     plt.show()
 
 
@@ -82,7 +84,8 @@ def plot_top1_train():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top1_train.pdf')
+    # fig.savefig('figures/top1_train.pdf')
+    fig.savefig('figures/top1_train.png')
     plt.show()
 
 
@@ -101,7 +104,8 @@ def plot_top1_val():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top1_val.pdf')
+    # fig.savefig('figures/top1_val.pdf')
+    fig.savefig('figures/top1_val.png')
     plt.show()
 
 
@@ -120,7 +124,8 @@ def plot_top5_train():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top5_train.pdf')
+    # fig.savefig('figures/top5_train.pdf')
+    fig.savefig('figures/top5_train.png')
     plt.show()
 
 
@@ -139,14 +144,15 @@ def plot_top5_val():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top5_val.pdf')
+    # fig.savefig('figures/top5_val.pdf')
+    fig.savefig('figures/top5_val.png')
     plt.show()
 
 
 if __name__ == '__main__':
-    plot_throughput()
+    # plot_throughput()
     # plot_training_time()
     # plot_top1_train()
     # plot_top1_val()
     # plot_top5_train()
-    # plot_top5_val()
+    plot_top5_val()

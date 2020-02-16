@@ -264,8 +264,7 @@ def main():
         val_throughput, val_batch_time, val_losses, val_top1, val_top5 = validate(val_loader, model, criterion)
 
         # remember best prec@1 and save checkpoint
-        # since all GPUs on curr node will produce output
-        # only allow GPU0 to print training states
+        # only allow GPU0 to print training states to prevent double logging
         if torch.distributed.get_rank() == 0:
             is_best = val_top1 > best_prec1
             best_prec1 = max(val_top1, best_prec1)
@@ -278,7 +277,6 @@ def main():
             }, is_best, writer.log_dir)
 
             # log train and val states to tensorboard
-            # to prevent "double logging", only allow one GPU to write to tb
             writer.add_scalar('Throughput/train', train_throughput, epoch + 1)
             writer.add_scalar('Throughput/val', val_throughput, epoch + 1)
             writer.add_scalar('Time/train', train_batch_time, epoch + 1)

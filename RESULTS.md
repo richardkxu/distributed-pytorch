@@ -1,14 +1,38 @@
 # Training Logs
 
-# Training Curves Comparison
-![prec@1, prec@5](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359263014_image.png)
+# More Training Curves
+![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581893149281_top5_train.png)
 
-![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359356228_image.png)
 
-![Learning rate schedule](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359387425_image.png)
 
-![Throughput (img/sec), Batch time (sec)](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581359228206_image.png)
+![](https://paper-attachments.dropbox.com/s_6AE2DA76A07F8AEA0358C4F9706CD9C69343A0EA95A17BD16480AF086F09B55D_1581893153675_top5_val.png)
 
+# Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2
+
+All Arguments:
+Namespace(arch='resnet50', batch_size=208, channels_last=False, data='/home/shared/imagenet/raw/', distributed=True, epochs=90, evaluate=False, gpu=0, keep_batchnorm_fp32=None, local_rank=0, loss_scale=None, lr=5.2, momentum=0.9, opt_level='O2', pretrained=False, print_freq=10, resume='', start_epoch=0, sync_bn=False, weight_decay=0.0001, workers=20, world_size=64)
+
+Training Time: 
+1.00 hrs 7.00 mins 51.31 secs | 4071.31 secs
+
+Last val: 
+
+
+Resource usage:
+
+
+# Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2
+
+All Arguments:
+arch='resnet50', batch_size=208, channels_last=False, data='/home/shared/imagenet/raw/', distributed=True, epochs=90, evaluate=False, gpu=0, keep_batchnorm_fp32=None, local_rank=0, loss_scale=None, lr=2.6, momentum=0.9, opt_level='O2', pretrained=False, print_freq=10, resume='', start_epoch=0, sync_bn=False, weight_decay=0.0001, workers=20, world_size=32
+
+Training Time: 
+1.00 hrs 50.00 mins 52.91 secs | 6652.91 secs
+
+Last val: 
+
+
+Resource usage:
 
 
 # Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2
@@ -36,7 +60,7 @@ All Arguments:
 python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 
 Training Time: 
-5.00 hrs 48.00 mins 24.01 secs
+5.00 hrs 48.00 mins 24.01 secs | 20904.01 secs
 
 Last val: 
 Prec@1 76.292 Prec@5 93.028 
@@ -68,7 +92,8 @@ All Arguments:
 arch='resnet50', batch_size=208, channels_last=False, data='/home/shared/imagenet/raw/', distributed=True, epochs=81, evaluate=False, gpu=0, keep_batchnorm_fp32=None, local_rank=0, loss_scale=None, lr=0.1625, momentum=0.9, opt_level='O2', pretrained=False, print_freq=10, resume='', start_epoch=0, sync_bn=False, weight_decay=0.0001, workers=20, world_size=2
 
 Training Time: 
-20.00 hrs 36.00 mins 51.00 secs | 74211.11 secs
+18.00 hrs 33.00 mins 10.00 secs | 66790 secs (81 epochs)
+20.00 hrs 36.00 mins 51.11 secs | 74211.11 secs (90 epochs)
 
 Last val: (stops at 81th epoch)
 Prec@1 76.060 Prec@5 92.950
