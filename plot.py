@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -12,6 +10,7 @@ def plot_throughput():
     # z = np.array([1, 2, 4, 8, 16])*3004.51
 
     # linear
+    fig = plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
     # plt.plot(x, z, color='gray', linestyle='dashed', marker='o')
     plt.xticks(x)
@@ -20,7 +19,7 @@ def plot_throughput():
     plt.ylabel('Training Throughput (images/sec)')
     plt.grid(True)
     plt.tight_layout()
-    # plt.savefig('figures/training_throughput.pdf')
+    plt.savefig('figures/training_throughput.pdf')
     plt.savefig('figures/training_throughput.png')
     plt.show()
 
@@ -30,6 +29,7 @@ def plot_training_time():
     y = np.array([74211.11, 39536, 20904.01, 10969.42, 6652.91, 4071.31])
 
     # linear
+    fig = plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
     plt.xticks(x)
     plt.yticks(y)
@@ -37,7 +37,7 @@ def plot_training_time():
     plt.ylabel('Training Time (secs)')
     plt.grid(True)
     plt.tight_layout()
-    # plt.savefig('figures/training_time.pdf')
+    plt.savefig('figures/training_time.pdf')
     plt.savefig('figures/training_time.png')
     plt.show()
 
@@ -70,7 +70,7 @@ def plot_one_curve(ax, csv_path, color, label):
 
 
 def plot_top1_train():
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-1 Train Accuracy')
     ax.grid()
@@ -84,13 +84,13 @@ def plot_top1_train():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    # fig.savefig('figures/top1_train.pdf')
+    fig.savefig('figures/top1_train.pdf')
     fig.savefig('figures/top1_train.png')
     plt.show()
 
 
 def plot_top1_val():
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-1 Validation Accuracy')
     ax.grid()
@@ -104,13 +104,13 @@ def plot_top1_val():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    # fig.savefig('figures/top1_val.pdf')
+    fig.savefig('figures/top1_val.pdf')
     fig.savefig('figures/top1_val.png')
     plt.show()
 
 
 def plot_top5_train():
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-5 Train Accuracy')
     ax.grid()
@@ -124,13 +124,13 @@ def plot_top5_train():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    # fig.savefig('figures/top5_train.pdf')
+    fig.savefig('figures/top5_train.pdf')
     fig.savefig('figures/top5_train.png')
     plt.show()
 
 
 def plot_top5_val():
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-5 Validation Accuracy')
     ax.grid()
@@ -144,9 +144,37 @@ def plot_top5_val():
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    # fig.savefig('figures/top5_val.pdf')
+    fig.savefig('figures/top5_val.pdf')
     fig.savefig('figures/top5_val.png')
     plt.show()
+
+
+def plot_IO():
+    df = pd.read_csv('IO/bandwidth_gpux64.csv', sep=";")
+    y = df['Read'] / 1.0e9
+    print("Average BW: {}".format(np.sum(y[10:60]) / 50.0))
+    x = np.arange(len(y))
+
+    fig, ax1 = plt.subplots(figsize=(7, 4))
+    color1 = 'tab:blue'
+    ax1.set_xlabel('Minutes')
+    ax1.set_ylabel('Bandwidth (GBs)', color=color1)
+    ax1.plot(x, y, color=color1)
+    ax1.tick_params(axis='y', labelcolor=color1)
+
+    df = pd.read_csv('IO/iops_gpux64.csv', sep=";")
+    z = df['Read'] / 1000.0
+    print("Average IOPS: {}".format(np.sum(z[10:60]) / 50.0))
+    ax2 = ax1.twinx()
+    color2 = 'tab:orange'
+    ax2.set_ylabel('K IOPS', color=color2)
+    ax2.plot(x, z, color=color2)
+    ax2.tick_params(axis='y', labelcolor=color2)
+
+    plt.tight_layout()
+    fig.savefig('figures/IO.pdf')
+    fig.savefig('figures/IO.png')
+    # plt.show()
 
 
 if __name__ == '__main__':
@@ -155,4 +183,5 @@ if __name__ == '__main__':
     # plot_top1_train()
     # plot_top1_val()
     # plot_top5_train()
-    plot_top5_val()
+    # plot_top5_val()
+    plot_IO()
