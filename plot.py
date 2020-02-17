@@ -177,6 +177,41 @@ def plot_IO():
     # plt.show()
 
 
+def plot_BW():
+    df = pd.read_csv('IO/bandwidth_gpux64.csv', sep=";")
+    y = df['Read'] / 1.0e9
+    print("Average BW: {}".format(np.sum(y[10:60]) / 50.0))
+    x = np.arange(len(y))
+
+    fig, ax1 = plt.subplots(figsize=(7, 4))
+    ax1.set_xlabel('Minutes')
+    ax1.set_ylabel('Bandwidth (GBs)')
+    ax1.plot(x, y)
+    ax1.grid()
+    plt.tight_layout()
+    fig.savefig('figures/BW.pdf')
+    fig.savefig('figures/BW.png')
+    plt.show()
+
+
+def plot_IOPS():
+    df = pd.read_csv('IO/iops_gpux64.csv', sep=";")
+    z = df['Read'] / 1000.0
+    print("Average IOPS: {}".format(np.sum(z[10:60]) / 50.0))
+    x = np.arange(len(z))
+
+    fig, ax2 = plt.subplots(figsize=(7, 4))
+    ax2.set_xlabel('Minutes')
+    ax2.set_ylabel('K IOPS')
+    ax2.plot(x, z)
+
+    ax1.grid()
+    plt.tight_layout()
+    fig.savefig('figures/IOPS.pdf')
+    fig.savefig('figures/IOPS.png')
+    plt.show()
+
+
 if __name__ == '__main__':
     # plot_throughput()
     # plot_training_time()
@@ -184,4 +219,5 @@ if __name__ == '__main__':
     # plot_top1_val()
     # plot_top5_train()
     # plot_top5_val()
-    plot_IO()
+    # plot_IO()
+    plot_BW()
