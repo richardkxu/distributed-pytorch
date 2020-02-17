@@ -28,6 +28,10 @@ We will cover the following use cases:
     
 ![](figures/training_time.png)
 
+### I/O Performance
+
+![](figures/IO.png)
+
 - Please see `RESULTS.md` for more details
 
 ## Requirements
