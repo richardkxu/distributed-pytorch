@@ -7,12 +7,9 @@ def plot_throughput():
 
     x = np.array([2, 4, 8, 16, 32, 64])
     y = np.array([1582.04, 3004.51, 5805.14, 11273.57, 19496.10, 33080.03])
-    # z = np.array([1, 2, 4, 8, 16])*3004.51
 
-    # linear
-    fig = plt.figure(figsize=(7, 4))
+    plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
-    # plt.plot(x, z, color='gray', linestyle='dashed', marker='o')
     plt.xticks(x)
     plt.yticks(y)
     plt.xlabel('Number of GPUs')
@@ -28,8 +25,7 @@ def plot_training_time():
     x = np.array([2, 4, 8, 16, 32, 64])
     y = np.array([74211.11, 39536, 20904.01, 10969.42, 6652.91, 4071.31])
 
-    # linear
-    fig = plt.figure(figsize=(7, 4))
+    plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
     plt.xticks(x)
     plt.yticks(y)
@@ -60,7 +56,6 @@ def smooth(scalars, smooth_factor):
 
 
 def plot_one_curve(ax, csv_path, color, label):
-    print(csv_path)
     df = pd.read_csv(csv_path)
     x, y = df['Step'], df['Value']
     y = smooth(y, 0.6)
@@ -174,50 +169,14 @@ def plot_IO():
     plt.tight_layout()
     fig.savefig('figures/IO.pdf')
     fig.savefig('figures/IO.png')
-    # plt.show()
-
-
-def plot_BW():
-    df = pd.read_csv('IO/bandwidth_gpux64.csv', sep=";")
-    y = df['Read'] / 1.0e9
-    print("Average BW: {}".format(np.sum(y[10:60]) / 50.0))
-    x = np.arange(len(y))
-
-    fig, ax1 = plt.subplots(figsize=(7, 4))
-    ax1.set_xlabel('Minutes')
-    ax1.set_ylabel('Bandwidth (GBs)')
-    ax1.plot(x, y)
-    ax1.grid()
-    plt.tight_layout()
-    fig.savefig('figures/BW.pdf')
-    fig.savefig('figures/BW.png')
-    plt.show()
-
-
-def plot_IOPS():
-    df = pd.read_csv('IO/iops_gpux64.csv', sep=";")
-    z = df['Read'] / 1000.0
-    print("Average IOPS: {}".format(np.sum(z[10:60]) / 50.0))
-    x = np.arange(len(z))
-
-    fig, ax2 = plt.subplots(figsize=(7, 4))
-    ax2.set_xlabel('Minutes')
-    ax2.set_ylabel('K IOPS')
-    ax2.plot(x, z)
-
-    ax1.grid()
-    plt.tight_layout()
-    fig.savefig('figures/IOPS.pdf')
-    fig.savefig('figures/IOPS.png')
     plt.show()
 
 
 if __name__ == '__main__':
-    # plot_throughput()
+    plot_throughput()
     # plot_training_time()
     # plot_top1_train()
     # plot_top1_val()
     # plot_top5_train()
     # plot_top5_val()
     # plot_IO()
-    plot_BW()

@@ -16,11 +16,15 @@ We will cover the following use cases:
 
 ## Results, Learning Curves, Visualizations
 
-### Training Curves
+### Learning Curves
 
 ![](figures/top1_train.png) 
 
 ![](figures/top1_val.png)
+
+![](figures/top5_train.png) 
+
+![](figures/top5_val.png)
 
 ### Scalability Analysis
 
