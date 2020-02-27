@@ -11,18 +11,11 @@
 #SBATCH --cores-per-socket=20
 #SBATCH --threads-per-core=4
 #SBATCH --mem-per-cpu=1200
-#SBATCH --wait=0
-#SBATCH --export=ALL
 #SBATCH --gres=gpu:v100:4
 #SBATCH --reservation=kexu6_82
-#SBATCH --pty /bin/bash
-
-module load wmlce/1.7.0-py3.7
-cd ~/src/distributed-pytorch
 
 #This command to run your pytorch script
 #You will want to replace this
-COMMAND="imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/"
 
 #sth. like hal01
 MASTER=`/bin/hostname -s`
@@ -37,12 +30,12 @@ MPORT="8888"
 RANK=0
 for node in $HOSTLIST; do
   ssh -q $node \
-    pytorch -m torch.distributed.launch \
+    python -m torch.distributed.launch \
     --nproces_per_node=4 \
     --nnodes=$SLURM_JOB_NUM_NODES \
     --node_rank=$RANK \
     --master_addr="$MASTER" --master_port="$MPORT" \
-    $COMMAND &
+    imagenet_ddp_apex.py -a resnet50 -b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/ & 
   RANK=$((RANK+1))
 done
 wait
