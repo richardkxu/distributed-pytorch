@@ -9,7 +9,7 @@
 ##SBATCH --ntasks-per-node=160
 #SBATCH --sockets-per-node=2
 #SBATCH --cores-per-socket=20
-#SBATCH --threads-per-core=1
+#SBATCH --threads-per-core=4
 #SBATCH --mem-per-cpu=1200
 #SBATCH --gres=gpu:v100:4
 #SBATCH --reservation=kexu6_83
@@ -29,25 +29,24 @@ HOSTLIST="$MASTER $SLAVES"
 module load wmlce/1.6.2-py3.7
 cd /home/kexu6/src/distributed-pytorch
 
-srun python -m torch.distributed.launch \
-     --nproc_per_node=4 \
-     --nnodes=2 \
-     --node_rank=$RANK \
-     --master_addr="192.168.100.15" --master_port=8888 \
-     ./imagenet_ddp_apexi_test.py -a resnet50 -b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+#srun python -m torch.distributed.launch \
+#     --nproc_per_node=4 \
+#     --nnodes=2 \
+#     --node_rank=$RANK \
+#     --master_addr="192.168.100.15" --master_port=8888 \
+#     ./imagenet_ddp_apexi_test.py -a resnet50 -b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
 
 #Launch the pytorch processes, first on master (first in $HOSTLIST) then
 #on the slaves
-#RANK=0
-#for node in $HOSTLIST; do
-#  ssh $node  \
-#    cd /home/kexu6/src/distributed-pytorch; \
-#    python -m torch.distributed.launch \
-#    --nproc_per_node=4 \
-#    --nnodes=2 \
-#    --node_rank=$RANK \
-#    --master_addr="192.168.100.15" --master_port=8888 \
-#    imagenet_ddp_apex.py -a resnet50 -b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/ > $node.txt &  
-#  RANK=$((RANK+1))
-#done
-#wait
+RANK=0
+for node in $HOSTLIST; do
+  ssh -q $node  \
+    python -m torch.distributed.launch \
+    --nproc_per_node=4 \
+    --nnodes=2 \
+    --node_rank=$RANK \
+    --master_addr="192.168.100.15" --master_port=8888 \
+    imagenet_ddp_apex.py -a resnet50 -b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/ > $node.txt &
+  RANK=$((RANK+1))
+done
+wait
