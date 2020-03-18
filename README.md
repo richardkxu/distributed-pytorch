@@ -150,7 +150,7 @@ References:
 
 `torch.nn.DataParallel` is easier to use (just wrap the model and run your training script). However, because it uses one process to compute the model weights and then distribute them to each GPU on the current node during each batch, networking quickly becomes a bottle-neck and GPU utilization is often very low. Furthermore, it requires that all the GPUs be on the same node and doesn’t work with `Apex` for mixed-precision training.
 
-## Multi-processing Distributed Data Parallel (DDP), Deprecated
+## Multi-processing Distributed Data Parallel (DDP)
 
 Use cases:
 - Single node multi-GPU training
