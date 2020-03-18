@@ -2,11 +2,14 @@
 
 ## Overview
 
+We will focus on: 
+- distributed mixed precision training with NVIDIA `Apex`
+
 We will cover the following training methods for PyTorch:
 - regular, single node, single GPU training
 - `torch.nn.DataParallel`
 - `torch.nn.DistributedDataParallel`
-- mixed precision training with NVIDIA `Apex`
+- distributed mixed precision training with NVIDIA `Apex`
 - `TensorBoard` logging under distributed training context
 
 We will cover the following use cases:
@@ -40,10 +43,84 @@ We will cover the following use cases:
 
 ## Requirements
 
-- Install PyTorch ([pytorch.org](http://pytorch.org)) with GPU
+- Python 3
+- CUDA >= 9.0
+- Install PyTorch ([pytorch.org](http://pytorch.org)) with GPU, version >= 1.0
 - Download the ImageNet dataset and move validation images to labeled subfolders
     - To do this, you can use the following script: https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
     - on HAL cluster, use `/home/shared/imagenet/raw/`
+- Install NVIDIA `Apex`
+    ```
+    $ git clone https://github.com/NVIDIA/apex
+    $ cd apex
+    $ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+    ```
+
+## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex` (Recommended)
+
+References:
+
+- mnist apex: https://github.com/yangkky/distributed_tutorial/blob/master/src/mnist-mixed.py
+- apex examples: https://github.com/nvidia/apex/tree/master/examples
+- apex tutorial: https://devblogs.nvidia.com/apex-pytorch-easy-mixed-precision-training/
+- apex tutorial: https://developer.nvidia.com/automatic-mixed-precision
+- apex doc: https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html
+
+Mixed precision training: majority of the network uses FP16 arithmetic, while automatically casting potentially unstable operations to FP32.
+
+Key points:
+- Ensuring that weight updates are carried out in FP32.
+- Loss scaling to prevent underflowing gradients.
+- A few operations (e.g. large reductions) left in FP32.
+- Everything else (the majority of the network) executed in FP16.
+
+Advantages:
+- reducing memory storage/bandwidth demands by 2x
+- use larger batch sizes
+- take advantage of NVIDIA Tensor Cores for matrix multiplications and convolutions
+- don't need to explicitly convert your model, or the input data, to half().
+
+**`imagenet_ddp_mixprec.py` is deprecated. Use `imagenet_ddp_apex.py`.**
+
+### Single node, multiple GPUs:
+
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
+
+### Multiple nodes, multiple GPUs:
+
+To run your programe on 2 nodes with 4 GPU each, you will need to open 2 terminals and run slightly different command on each node.
+
+Node 0:
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
+
+- torch distributed launch module: https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
+- `--nproc_per_node`: number of GPUs on the current node, each process is bound to a single GPU
+- `----node_rank`: rank of the current node, should be an int between `0` and `--world-size - 1`
+- `--master_addr`: IP address for the master node of your choice. type `str`
+- `--master_port`: open port number on the master node. type `int`. if you don't know, use `8888`
+- `--workers`: # of data loading workers for the current node. this is different from the processes that run the programe on each GPU. the total # of processes = # of data loading workers + # of GPUs (one process to run each GPU)
+- `-b`: per GPU batch size, for a 16 GB GPU, `224` is the max batch size. Need to be a multiple of 8 to make use of Tensor Cores. **If you are using tensorboard logging, you need to assign a slightly smaller batch size!**
+
+Node 1:
+```bash
+python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
+```
+
+### FQA
+
+1. The following message is normal behavior with dynamic loss scaling, and it usually happens in the first few iterations because Amp begins by trying a high loss scale.
+```
+Gradient overflow.  Skipping step, loss scaler 0 reducing loss scale to 4096.0Gradient overflow.
+```
+
+2. For multi-process training, even if you `ctrl C` on each compute node, there will still be some processes alive. To clean up all python processes on curr node, use:
+```
+pkill -9 python
+```
 
 ## Non-distributed (ND) training
 
@@ -131,72 +208,6 @@ python  imagenet_ddp.py -a resnet50 --dist-url 'tcp://MASTER_IP:MASTER_PORT' --d
 Node 3:
 ```bash
 python  imagenet_ddp.py -a resnet50 --dist-url 'tcp://MASTER_IP:MASTER_PORT' --dist-backend 'nccl' --world-size 4 --rank 3 --desired-acc 0.75 /home/shared/imagenet/raw/
-```
-
-## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex`, Recommended
-
-References:
-
-- mnist apex: https://github.com/yangkky/distributed_tutorial/blob/master/src/mnist-mixed.py
-- apex examples: https://github.com/nvidia/apex/tree/master/examples
-- apex tutorial: https://devblogs.nvidia.com/apex-pytorch-easy-mixed-precision-training/
-- apex tutorial: https://developer.nvidia.com/automatic-mixed-precision
-- apex doc: https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html
-
-Mixed precision training: majority of the network uses FP16 arithmetic, while automatically casting potentially unstable operations to FP32.
-
-Key points:
-- Ensuring that weight updates are carried out in FP32.
-- Loss scaling to prevent underflowing gradients.
-- A few operations (e.g. large reductions) left in FP32.
-- Everything else (the majority of the network) executed in FP16.
-
-Advantages:
-- reducing memory storage/bandwidth demands by 2x
-- use larger batch sizes
-- take advantage of NVIDIA Tensor Cores for matrix multiplications and convolutions
-- don't need to explicitly convert your model, or the input data, to half().
-
-**`imagenet_ddp_mixprec.py` is deprecated. Use `imagenet_ddp_apex.py`.**
-
-### Single node, multiple GPUs:
-
-```bash
-python -m torch.distributed.launch --nproc_per_node=4 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
-```
-
-### Multiple nodes, multiple GPUs:
-
-To run your programe on 2 nodes with 4 GPU each, you will need to open 2 terminals and run slightly different command on each node.
-
-Node 0:
-```bash
-python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=0 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
-```
-
-- torch distributed launch module: https://github.com/pytorch/pytorch/blob/master/torch/distributed/launch.py
-- `--nproc_per_node`: number of GPUs on the current node, each process is bound to a single GPU
-- `----node_rank`: rank of the current node, should be an int between `0` and `--world-size - 1`
-- `--master_addr`: IP address for the master node of your choice. type `str`
-- `--master_port`: open port number on the master node. type `int`. if you don't know, use `8888`
-- `--workers`: # of data loading workers for the current node. this is different from the processes that run the programe on each GPU. the total # of processes = # of data loading workers + # of GPUs (one process to run each GPU)
-- `-b`: per GPU batch size, for a 16 GB GPU, `224` is the max batch size. Need to be a multiple of 8 to make use of Tensor Cores. **If you are using tensorboard logging, you need to assign a slightly smaller batch size!**
-
-Node 1:
-```bash
-python -m torch.distributed.launch --nproc_per_node=4 --nnodes=2 --node_rank=1 --master_addr="192.168.100.11" --master_port=8888 imagenet_ddp_apex.py -a resnet50 --b 208 --workers 20 --opt-level O2 /home/shared/imagenet/raw/
-```
-
-### FQA
-
-1. The following message is normal behavior with dynamic loss scaling, and it usually happens in the first few iterations because Amp begins by trying a high loss scale.
-```
-Gradient overflow.  Skipping step, loss scaler 0 reducing loss scale to 4096.0Gradient overflow.
-```
-
-2. For multi-process training, even if you `ctrl C` on each compute node, there will still be some processes alive. To clean up all python processes on curr node, use:
-```
-pkill -9 python
 ```
 
 ## `TensorBoard`
