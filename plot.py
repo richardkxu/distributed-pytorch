@@ -1,12 +1,10 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def plot_throughput():
-
-    x = np.array([2, 4, 8, 16, 32, 64])
-    y = np.array([1582.04, 3004.51, 5805.14, 11273.57, 19496.10, 33080.03])
+def plot_throughput(x, y, outdir):
 
     plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
@@ -16,14 +14,12 @@ def plot_throughput():
     plt.ylabel('Training Throughput (images/sec)')
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig('figures/training_throughput.pdf')
-    plt.savefig('figures/training_throughput.png')
+    plt.savefig(os.path.join('figures/', outdir, 'training_throughput.pdf'))
+    plt.savefig(os.path.join('figures/', outdir, 'training_throughput.png'))
     plt.show()
 
 
-def plot_training_time():
-    x = np.array([2, 4, 8, 16, 32, 64])
-    y = np.array([74211.11, 39536, 20904.01, 10969.42, 6652.91, 4071.31])
+def plot_training_time(x, y, outdir):
 
     plt.figure(figsize=(7, 4))
     plt.plot(x, y, color='blue', marker='o')
@@ -33,8 +29,8 @@ def plot_training_time():
     plt.ylabel('Training Time (secs)')
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig('figures/training_time.pdf')
-    plt.savefig('figures/training_time.png')
+    plt.savefig(os.path.join('figures', outdir, 'training_time.pdf'))
+    plt.savefig(os.path.join('figures', outdir, 'training_time.png'))
     plt.show()
 
 
@@ -64,88 +60,72 @@ def plot_one_curve(ax, csv_path, color, label):
     return ax
 
 
-def plot_top1_train():
+def plot_top1_train(paths, colors, legends, outdir):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-1 Train Accuracy')
     ax.grid()
 
-    plot_one_curve(ax, 'Top1_train/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top1_train.csv', 'orange', 'gpux2')
-    plot_one_curve(ax, 'Top1_train/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top1_train.csv', 'red', 'gpux4')
-    plot_one_curve(ax, 'Top1_train/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top1_train.csv', 'blue', 'gpux8')
-    plot_one_curve(ax, 'Top1_train/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top1_train.csv', 'purple', 'gpux16')
-    plot_one_curve(ax, 'Top1_train/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top1_train.csv', 'brown', 'gpux32')
-    plot_one_curve(ax, 'Top1_train/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top1_train.csv', 'gray', 'gpux64')
+    for i in range(len(paths)):
+        plot_one_curve(ax, paths[i], colors[i], legends[i])
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top1_train.pdf')
-    fig.savefig('figures/top1_train.png')
+    fig.savefig(os.path.join('figures', outdir, 'top1_train.pdf'))
+    fig.savefig(os.path.join('figures', outdir, 'top1_train.png'))
     plt.show()
 
 
-def plot_top1_val():
+def plot_top1_val(paths, colors, legends, outdir):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-1 Validation Accuracy')
     ax.grid()
 
-    plot_one_curve(ax, 'Top1_val/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top1_val.csv', 'orange', 'gpux2')
-    plot_one_curve(ax, 'Top1_val/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top1_val.csv', 'red', 'gpux4')
-    plot_one_curve(ax, 'Top1_val/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top1_val.csv', 'blue', 'gpux8')
-    plot_one_curve(ax, 'Top1_val/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top1_val.csv', 'purple', 'gpux16')
-    plot_one_curve(ax, 'Top1_val/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top1_val.csv', 'brown', 'gpux32')
-    plot_one_curve(ax, 'Top1_val/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top1_val.csv', 'gray', 'gpux64')
+    for i in range(len(paths)):
+        plot_one_curve(ax, paths[i], colors[i], legends[i])
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top1_val.pdf')
-    fig.savefig('figures/top1_val.png')
+    fig.savefig(os.path.join('figures', outdir, 'top1_val.pdf'))
+    fig.savefig(os.path.join('figures', outdir, 'top1_val.png'))
     plt.show()
 
 
-def plot_top5_train():
+def plot_top5_train(paths, colors, legends, outdir):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-5 Train Accuracy')
     ax.grid()
 
-    plot_one_curve(ax, 'Top5_train/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top5_train.csv', 'orange', 'gpux2')
-    plot_one_curve(ax, 'Top5_train/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top5_train.csv', 'red', 'gpux4')
-    plot_one_curve(ax, 'Top5_train/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top5_train.csv', 'blue', 'gpux8')
-    plot_one_curve(ax, 'Top5_train/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top5_train.csv', 'purple', 'gpux16')
-    plot_one_curve(ax, 'Top5_train/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top5_train.csv', 'brown', 'gpux32')
-    plot_one_curve(ax, 'Top5_train/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top5_train.csv', 'gray', 'gpux64')
+    for i in range(len(paths)):
+        plot_one_curve(ax, paths[i], colors[i], legends[i])
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top5_train.pdf')
-    fig.savefig('figures/top5_train.png')
+    fig.savefig(os.path.join('figures', outdir, 'top5_train.pdf'))
+    fig.savefig(os.path.join('figures', outdir, 'top5_train.png'))
     plt.show()
 
 
-def plot_top5_val():
+def plot_top5_val(paths, colors, legends, outdir):
     fig, ax = plt.subplots(figsize=(7, 4))
     ax.set(xlabel='Epochs',
            ylabel='Top-5 Validation Accuracy')
     ax.grid()
 
-    plot_one_curve(ax, 'Top5_val/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top5_val.csv', 'orange', 'gpux2')
-    plot_one_curve(ax, 'Top5_val/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top5_val.csv', 'red', 'gpux4')
-    plot_one_curve(ax, 'Top5_val/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top5_val.csv', 'blue', 'gpux8')
-    plot_one_curve(ax, 'Top5_val/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top5_val.csv', 'purple', 'gpux16')
-    plot_one_curve(ax, 'Top5_val/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top5_val.csv', 'brown', 'gpux32')
-    plot_one_curve(ax, 'Top5_val/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top5_val.csv', 'gray', 'gpux64')
+    for i in range(len(paths)):
+        plot_one_curve(ax, paths[i], colors[i], legends[i])
 
     plt.legend(loc='lower right')
     plt.tight_layout()
-    fig.savefig('figures/top5_val.pdf')
-    fig.savefig('figures/top5_val.png')
+    fig.savefig(os.path.join('figures', outdir, 'top5_val.pdf'))
+    fig.savefig(os.path.join('figures', outdir, 'top5_val.png'))
     plt.show()
 
 
-def plot_IO():
-    df = pd.read_csv('IO/bandwidth_gpux64.csv', sep=";")
+def plot_IO(bw_path, io_path, outdir):
+    df = pd.read_csv(bw_path, sep=";")
     y = df['Read'] / 1.0e9
     print("Average BW: {}".format(np.sum(y[10:60]) / 50.0))
     x = np.arange(len(y))
@@ -157,7 +137,7 @@ def plot_IO():
     ax1.plot(x, y, color=color1)
     ax1.tick_params(axis='y', labelcolor=color1)
 
-    df = pd.read_csv('IO/iops_gpux64.csv', sep=";")
+    df = pd.read_csv(io_path, sep=";")
     z = df['Read'] / 1000.0
     print("Average IOPS: {}".format(np.sum(z[10:60]) / 50.0))
     ax2 = ax1.twinx()
@@ -167,16 +147,111 @@ def plot_IO():
     ax2.tick_params(axis='y', labelcolor=color2)
 
     plt.tight_layout()
-    fig.savefig('figures/IO.pdf')
-    fig.savefig('figures/IO.png')
+    fig.savefig(os.path.join('figures', outdir, 'IO.pdf'))
+    fig.savefig(os.path.join('figures', outdir, 'IO.png'))
     plt.show()
 
 
+def plot_all_may():
+    outdir = 'benchmark_may'
+    n_gpus = np.array([4, 8, 16, 32, 64])
+    # throughput = np.array([])
+    # plot_throughput(n_gpus, throughput, outdir)
+    #
+    # train_time = np.array([])
+    # plot_training_time(n_gpus, train_time, outdir)
+
+    colors = ['red', 'blue', 'purple', 'brown', 'gray']
+    legends = ['gpux4', 'gpux8', 'gpux16', 'gpux32', 'gpux64']
+    top1_train_paths = ['Top1_train/run-May01_17-14-54_hal08_resnet50_gpux4_b224_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-May01_10-28-28_hal06_resnet50_gpux8_b256_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-May01_12-59-11_hal03_resnet50_gpux16_b256_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Apr30_23-29-32_hal01_resnet50_gpux32_b256_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-May01_08-52-56_hal01_resnet50_gpux64_b256_cpu20_optO2-tag-Top1_train.csv'
+                        ]
+    plot_top1_train(top1_train_paths, colors, legends, outdir)
+
+    top1_val_paths = ['Top1_val/run-May01_17-14-54_hal08_resnet50_gpux4_b224_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-May01_10-28-28_hal06_resnet50_gpux8_b256_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-May01_12-59-11_hal03_resnet50_gpux16_b256_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Apr30_23-29-32_hal01_resnet50_gpux32_b256_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-May01_08-52-56_hal01_resnet50_gpux64_b256_cpu20_optO2-tag-Top1_val.csv'
+                      ]
+    plot_top1_val(top1_val_paths, colors, legends, outdir)
+
+    top5_train_paths = ['Top5_train/run-May01_17-14-54_hal08_resnet50_gpux4_b224_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-May01_10-28-28_hal06_resnet50_gpux8_b256_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-May01_12-59-11_hal03_resnet50_gpux16_b256_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Apr30_23-29-32_hal01_resnet50_gpux32_b256_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-May01_08-52-56_hal01_resnet50_gpux64_b256_cpu20_optO2-tag-Top5_train.csv'
+                        ]
+    plot_top5_train(top5_train_paths, colors, legends, outdir)
+
+    top5_val_paths = ['Top5_val/run-May01_17-14-54_hal08_resnet50_gpux4_b224_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-May01_10-28-28_hal06_resnet50_gpux8_b256_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-May01_12-59-11_hal03_resnet50_gpux16_b256_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Apr30_23-29-32_hal01_resnet50_gpux32_b256_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-May01_08-52-56_hal01_resnet50_gpux64_b256_cpu20_optO2-tag-Top5_val.csv'
+                      ]
+    plot_top5_val(top5_val_paths, colors, legends, outdir)
+
+    # plot_IO('IO/bandwidth_gpux64.csv', 'IO/iops_gpux64.csv', outdir)
+
+    return
+
+
+def plot_all_feb():
+    outdir = 'benchmark_feb'
+    n_gpus = np.array([2, 4, 8, 16, 32, 64])
+    throughput = np.array([1582.04, 3004.51, 5805.14, 11273.57, 19496.10, 33080.03])
+    plot_throughput(n_gpus, throughput, outdir)
+
+    train_time = np.array([74211.11, 39536, 20904.01, 10969.42, 6652.91, 4071.31])
+    plot_training_time(n_gpus, train_time, outdir)
+
+    colors = ['orange', 'red', 'blue', 'purple', 'brown', 'gray']
+    legends = ['gpux2', 'gpux4', 'gpux8', 'gpux16', 'gpux32', 'gpux64']
+    top1_train_paths = ['Top1_train/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top1_train.csv',
+                        'Top1_train/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top1_train.csv'
+                        ]
+    plot_top1_train(top1_train_paths, colors, legends, outdir)
+
+    top1_val_paths = ['Top1_val/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top1_val.csv',
+                      'Top1_val/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top1_val.csv'
+                      ]
+    plot_top1_val(top1_val_paths, colors, legends, outdir)
+
+    top5_train_paths = ['Top5_train/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top5_train.csv',
+                        'Top5_train/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top5_train.csv'
+                        ]
+    plot_top5_train(top5_train_paths, colors, legends, outdir)
+
+    top5_val_paths = ['Top5_val/run-Feb09_14-20-42_hal14_resnet50_gpux2_b208_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Feb09_14-22-11_hal13_resnet50_gpux4_b208_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Feb08_13-47-09_hal11_resnet50_gpux8_b208_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Feb09_09-21-23_hal13_resnet50_gpux16_b208_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Feb12_23-28-54_hal01_resnet50_gpux32_b208_cpu20_optO2-tag-Top5_val.csv',
+                      'Top5_val/run-Feb12_21-54-28_hal01_resnet50_gpux64_b208_cpu20_optO2-tag-Top5_val.csv'
+                      ]
+    plot_top5_val(top5_val_paths, colors, legends, outdir)
+
+    plot_IO('IO/bandwidth_gpux64.csv', 'IO/iops_gpux64.csv', outdir)
+
+    return
+
+
 if __name__ == '__main__':
-    plot_throughput()
-    # plot_training_time()
-    # plot_top1_train()
-    # plot_top1_val()
-    # plot_top5_train()
-    # plot_top5_val()
-    # plot_IO()
+    plot_all_may()
+
