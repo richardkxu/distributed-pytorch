@@ -155,11 +155,11 @@ def plot_IO(bw_path, io_path, outdir):
 def plot_all_may():
     outdir = 'benchmark_may'
     n_gpus = np.array([4, 8, 16, 32, 64])
-    # throughput = np.array([])
-    # plot_throughput(n_gpus, throughput, outdir)
-    #
-    # train_time = np.array([])
-    # plot_training_time(n_gpus, train_time, outdir)
+    throughput = np.array([2924.98, 5734.69, 10767.88, 20367.57, 37488.15])
+    plot_throughput(n_gpus, throughput, outdir)
+
+    train_time = np.array([40908.36, 21123.88, 11291.56, 6027.09, 3378.84])
+    plot_training_time(n_gpus, train_time, outdir)
 
     colors = ['red', 'blue', 'purple', 'brown', 'gray']
     legends = ['gpux4', 'gpux8', 'gpux16', 'gpux32', 'gpux64']
