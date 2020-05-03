@@ -195,7 +195,7 @@ def plot_all_may():
                       ]
     plot_top5_val(top5_val_paths, colors, legends, outdir)
 
-    # plot_IO('IO/bandwidth_gpux64.csv', 'IO/iops_gpux64.csv', outdir)
+    plot_IO('IO/bandwidth_gpux64_cpu20_may01.csv', 'IO/iops_gpux64_cpu20_may01.csv', outdir)
 
     return
 
@@ -247,7 +247,7 @@ def plot_all_feb():
                       ]
     plot_top5_val(top5_val_paths, colors, legends, outdir)
 
-    plot_IO('IO/bandwidth_gpux64.csv', 'IO/iops_gpux64.csv', outdir)
+    plot_IO('IO/bandwidth_gpux64_feb.csv', 'IO/iops_gpux64_feb.csv', outdir)
 
     return
 
