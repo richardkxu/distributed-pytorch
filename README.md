@@ -57,6 +57,7 @@ We will cover the following use cases:
     ```
 
 ## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex` (Recommended)
+Note: automatic mixed precision training in now native in PyTorch 1.6. See https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/ for more details.
 
 References:
 
