@@ -21,23 +21,23 @@ We will cover the following use cases:
 
 ### Learning Curves
 
-![](figures/top1_train.png) 
+![](figures/benchmark_feb/top1_train.png) 
 
-![](figures/top1_val.png)
+![](figures/benchmark_feb/top1_val.png)
 
-![](figures/top5_train.png) 
+![](figures/benchmark_feb/top5_train.png) 
 
-![](figures/top5_val.png)
+![](figures/benchmark_feb/top5_val.png)
 
 ### Scalability Analysis
 
-![](figures/training_throughput.png)
+![](figures/benchmark_feb/training_throughput.png)
     
-![](figures/training_time.png)
+![](figures/benchmark_feb/training_time.png)
 
 ### I/O Performance
 
-![](figures/IO.png)
+![](figures/benchmark_feb/IO.png)
 
 - Please see `RESULTS.md` for more details
 
@@ -49,15 +49,18 @@ We will cover the following use cases:
 - Download the ImageNet dataset and move validation images to labeled subfolders
     - To do this, you can use the following script: https://raw.githubusercontent.com/soumith/imagenetloader.torch/master/valprep.sh
     - on HAL cluster, use `/home/shared/imagenet/raw/`
-- Install NVIDIA `Apex`
+- Install NVIDIA `Apex` (not required for PyTorch > 1.6.0)
     ```
     $ git clone https://github.com/NVIDIA/apex
     $ cd apex
     $ pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
     ```
 
+## Updates since the tutorial was written
+- automatic mixed precision (AMP) training in now native in PyTorch 1.6. Use `torch.cuda.amp` instead of `apex.amp`. See https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/ for more details. 
+- in addition to FP16-FP32 mixed-precision training, people in the industry start to use quantization-aware training (QAT) using INT8 for even better perfomance. Checkout this post from NVIDIA: https://developer.nvidia.com/blog/improving-int8-accuracy-using-quantization-aware-training-and-the-transfer-learning-toolkit/.
+
 ## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex` (Recommended)
-Note: automatic mixed precision training in now native in PyTorch 1.6. See https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/ for more details.
 
 References:
 
@@ -66,6 +69,7 @@ References:
 - apex tutorial: https://devblogs.nvidia.com/apex-pytorch-easy-mixed-precision-training/
 - apex tutorial: https://developer.nvidia.com/automatic-mixed-precision
 - apex doc: https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html
+- apex in PyTorch 1.6.0: https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/
 
 Mixed precision training: majority of the network uses FP16 arithmetic, while automatically casting potentially unstable operations to FP32.
 
