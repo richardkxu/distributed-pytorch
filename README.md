@@ -1,4 +1,6 @@
 # Distributed training with PyTorch
+## Publication
+Kindratenko, Volodymyr, Dawei Mu, Yan Zhan, John Maloney, Sayed Hadi Hashemi, Benjamin Rabe, Ke Xu, Roy Campbell, Jian Peng, and William Gropp. "HAL: Computer System for Scalable Deep Learning." In Practice and Experience in Advanced Research Computing, pp. 41-48. 2020. https://doi.org/10.1145/3311790.3396649.
 
 ## Overview
 
@@ -57,7 +59,7 @@ We will cover the following use cases:
     ```
 
 ## Updates since the tutorial was written
-- automatic mixed precision (AMP) training in now native in PyTorch 1.6. Use `torch.cuda.amp` instead of `apex.amp`. See https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/ for more details. 
+- automatic mixed precision (AMP) training is now native in PyTorch 1.6. Use `torch.cuda.amp` instead of `apex.amp`. See https://pytorch.org/blog/accelerating-training-on-nvidia-gpus-with-pytorch-automatic-mixed-precision/ for more details. 
 - in addition to FP16-FP32 mixed-precision training, people in the industry start to use quantization-aware training (QAT) using INT8 for even better perfomance. Checkout this post from NVIDIA: https://developer.nvidia.com/blog/improving-int8-accuracy-using-quantization-aware-training-and-the-transfer-learning-toolkit/.
 
 ## FP16 and FP32 mixed precision distributed training with NVIDIA `Apex` (Recommended)
